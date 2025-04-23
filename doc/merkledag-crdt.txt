@@ -1,0 +1,1086 @@
+arXiv:2004.00107v2 [cs.NI] 27 Apr 2020
+Merkle-CRDTs
+Merkle-DAGs meet CRDTs
+H´ector Sanju´an1
+, Samuli P ¨oyht¨ari2
+, Pedro Teixeira1
+, and Ioannis Psaras1,3
+1Protocol Labs
+2Haja Networks
+3University College London
+Abstract—We study Merkle-DAGs as a transport and persistence layer for Conflict-Free Replicated Data Types (CRDTs),
+coining the term Merkle-CRDTs and providing an overview of
+the different concepts, properties, advantages and limitations
+involved. We show how Merkle-DAGs can act as logical clocks
+giving Merkle-CRDTs the potential to greatly simplify the design
+and implementation of convergent data types in systems with
+weak messaging layer guarantees and a very large number of
+replicas. Merkle-CRDTs can leverage highly scalable distributed
+technologies like DHTs and PubSub algorithms running underneath to take advantage of the security and de-duplication
+properties of content-addressing. Examples of such contentoriented systems could include peer-to-peer content exchange and
+synchronisation applications between opportunistically connected
+mobile devices, IoT devices or user applications running in a web
+browser.
+I. INTRODUCTION
+The advent of blockchain technology has generalized the
+use of peer-to-peer networking along with cryptographicallydirected acyclic graphs, known as Merkle-DAGs, to implement
+globally distributed and eventually consistent data structures
+in applications such as cryptocurrencies. In these systems, the
+Merkle-DAG is a content-addressed data structure used to provide both causality information and self-verification of objects
+that can be easily and efficiently shared in trustless peer-to-peer
+environments. The need to maintain and apply certain rules to
+add new blocks to the blockchains in adversarial scenarios
+usually warrants the use of consensus algorithms.
+A different approach to obtaining eventual consistency
+in a distributed system is by using Conflict-Free Replicated
+Data Types (CRDTs) [30], [33]. CRDTs are useful in nonadversarial scenarios, where the participating replicas are
+known to behave correctly. CRDTs rely on some properties of
+the data objects themselves that enable convergence towards a
+global, unique state without the need for consensus. CRDTs
+come in two main flavours: state-based CRDTs1—where the
+states of replicas form a join-semilattice and are merged under
+the guarantees afforded by it—and operation-based CRDTs2
+—in which commutative operations are broadcast and applied
+to the local state by every replica. Additionally, δ-CRDTs are
+an optimization of state-based CRDTs to reduce the size of
+the payloads sent by the replicas.
+Both Merkle-DAGs and CRDTs provide interesting properties: the former allows distributed systems to take advantage
+1Also known as Convergent CRDTs or CvRDTs.
+2Also known as Commutative CRDTs or CmRDTs.
+of a content-addressing layer for the resolution/discoverability
+and self-verification of data regardless of the source location;
+the latter allows global state convergence without the need
+for—usually complex and expensive—consensus mechanisms.
+By embedding CRDT objects inside Merkle-DAG nodes, we
+obtain the best properties of both worlds, that is, we obtain a convergent system that can leverage the DAG as a
+logical clock. This logical clock is provided and built by
+every replica without the need for coordination. Replicas can
+operate undisrupted in loose network environments with no
+delivery guarantees. As we will see, a system based on MerkleCRDTs is fully agnostic to how the system announces and
+discovers data among replicas, thus being able to leverage
+different approaches like those provided by DHT and PubSub
+mechanisms without being tied to a particular version of them.
+This is in stark contrast to traditional consensus algorithms,
+e.g., Raft, which are tied to particular message dissemination
+protocols.
+We conceive this approach as extremely useful for fully distributed and unstructured peer-to-peer applications, where the
+replicas are writers to a common dataset, usually in the form
+of a database. This is the case for example, in a distributed and
+fully replicated file-system, chat group or package repository
+index. We have found that using the InterPlanetary File System
+(IPFS) [14] (see Section II-F) as a content-addressed, peer-topeer decentralised file system and content distribution network,
+a Merkle-CRDT-based system scales well to the order of
+thousands of replicas which can opportunistically join and
+depart – a very common condition when working with mobile,
+browsers or IoT devices.
+The InterPlanetary File System provides a contentaddressed peer-to-peer filesystem [14], which supports seamless syncing of Merkle-DAGs with arbitrary formats and
+payloads, making it a robust building block for different types
+of distributed applications like PeerPad3 or OrbitDB4
+, both
+powered by CRDTs and IPFS. IPFS not only delivers the right
+environment for working with content addressed data (like the
+Merkle-DAG that we will use), but also allows our CRDT
+application to be fully detached from the lower levels of the
+distributed system: networking transports, discovery and data
+transfer facilities come in modules which can be swapped
+and tweaked independently. Leveraging such system greatly
+simplifies the design and optimization of the CRDT layer so
+3PeerPad is a real time p2p collaborative editing tool (https://peerpad.net).
+4OrbitDB is a peer-to-peer database for the decentralized web
+(https://github.com/orbitdb/orbit-db ).
+that it adapts well to the use case it is meant to serve.
+In this paper we formalize what we refer to as MerkleCRDTs. The goal is to provide an overview of their properties,
+advantages and limitations, so that it can set the ground
+layer for future research and optimizations in the space. For
+example, Merkle-CRDTs allow building fully distributed keyvalue stores in real-world systems in networks with no message
+delivery guarantees and fully flexible replica sets that can grow
+and shrink at any time without impacting the CRDT layer.
+The contributions of this paper are as follows:
+• We define Merkle-Clocks as Merke-DAG-based logical
+clocks, to represent causality information in a distributed
+system. Embedding causality information using MerkleDAGs is at the core of cryptocurrencies and source
+control systems like Git but they are rarely considered
+separately as a type of logical clock. We demonstrate
+that Merkle-Clocks can be used in place of other logical
+clocks traditionally used by CRDTs like version vectors
+and vector clocks. We show that Merkle-Clocks can, in
+fact, be seen as CRDT objects themselves, which can be
+synced and merged and for which we can formally prove
+eventual consistency across different replicas.
+• We define Merkle-CRDTs as a general purpose transport
+and persistence layer for CRDT payloads which leverages
+the properties of Merkle-Clocks, using the DAG-Syncer
+and the Broadcaster to provide per-object causal consistency by design. This enables the use of simple CRDT
+types in systems with weak messaging layer guarantees
+and large number of replicas.
+Our intention with this paper is to show that eventual
+consistency between replicas can be achieved independently of
+the underlying transport mechanisms and in a setting where
+all peers are equal. This means that Merkle-CRDTs can be
+implemented on top of any underlying peer discovery and
+routing system (e.g., DHT, PubSub). We argue that this is a
+very powerful concept that has the potential to lead to new
+eventual consistency system designs. It is also fundamentally
+different to traditional consensus algorithms, such as Raft,
+where at any given time there needs to be a leader peer that
+collects the latest state from all other peers. As such, we do
+not provide an evaluation against these traditional approaches
+as their requirements and design principles are fundamentally
+different.
+The rest of the paper is organised as follows: In Section II,
+we start by introducing relevant background concepts and prior
+art. In Section III, we expose the characteristics of our system
+model and introduce the facilities needed to store and sync
+Merkle-CRDTs.
+In Section IV, we introduce Merkle-Clocks and, building
+on the previous sections, in Section V, we define MerkleCRDTs. We discuss how different CRDT payloads (whether
+operation-based, state-based or δ-based) benefit from MerkleCRDTs. Finally, we describe some of the limitations and
+inefficiencies of Merkle-CRDTs and introduce techniques to
+overcome them in Section VI.
+II. BACKGROUND & RELATED WORK
+A. Eventual consistency
+Eventual Consistency (EC) in distributed systems refers
+to the situation where the state may not be the same across
+replicas of the system but, given enough time and perhaps after
+network partitions, downtime and other eventualities have been
+resolved, the system design will ensure that the state becomes
+the same everywhere.
+The main weakness of the eventual consistency definition
+is that it offers no guarantees as to when the shared state will
+converge or how much the individual states will be allowed
+to diverge until then5
+. Strong eventual consistency (SEC)
+addresses these issues by establishing an additional safety
+guarantee: if two replicas have received the same updates, their
+state will be the same.
+Consensus algorithms or, more important to this paper,
+Conflict-Free Replicated Data Types (CRDTs) are ways to
+achieve (strong) eventual consistency in a distributed system.
+B. Merkle DAGs
+A Directed Acyclic Graph (DAG) is a type of graph in
+which edges have direction and cycles are not allowed. For
+example, a linked list like A → B → C is an instance of a
+DAG where A references B and so on. We say that B is a
+child or a descendant of A, and that node A has a link to B.
+Conversely A is a parent of B. We call nodes6
+that are not
+children to any other node in the DAG as the root nodes. A
+Merkle-DAG is a DAG where each node has an identifier and
+this is the result of hashing the node’s contents —any opaque
+payload carried by the node and the list of identifiers of its
+children— using a cryptographic hash function like SHA256.
+This brings some important considerations:
+a) Merkle-DAGs can only be constructed from the leaves,
+that is, from nodes without children. Parents are added
+after children because the children’s identifiers must be
+computed in advance to be able to link them.
+b) every node in a Merkle-DAG is the root of a (sub)MerkleDAG itself, and this subgraph is contained in the parent
+DAG7
+.
+c) Merkle-DAG nodes are immutable. Any change in a node
+would alter its identifier and thus affect all the ascendants
+in the DAG, essentially creating a different DAG.
+Identifying a data object (like a Merkle-DAG node) by the
+value of its hash is referred to as content addressing. Thus,
+we name the node identifier as Content Identifier or CID.
+For example, in the previous linked list, assuming that the
+payload of each node is just the CID of its descendant would
+be: A = Hash(B) → B = Hash(C) → C = Hash(∅). The
+5EC only provides a liveness guarantee: the system will not become stuck
+when making progress to converge.
+6Throughout the paper, we use the term replica to refer to the physical
+machine of a network node and node to refer to bundled content addressed
+by a single identifier.
+7Merkle-DAGs are similar to Merkle Trees [25] but there are no balance
+requirements and every node can carry a payload. In DAGs, several branches
+can re-converge or, in other words, a node can have several parents, or be part
+of several Merkle DAGs.
+properties of the hash function ensure that no cycles can exist
+when creating Merkle-DAGs. 8
+.
+Merkle-DAGs are self-verified and immutable structures.
+The CID of a node is univocally linked to the contents of its
+payload and those of all its descendants. Thus two nodes with
+the same CID univocally represent exactly the same DAG.
+This will be a key property to efficiently sync Merkle-CRDTs
+without having to copy the full DAG, as exploited by systems
+like IPFS.
+Merkle-DAGs are widely used. Source control systems [13]
+like Git [17] use them to efficiently store the repository history
+in a way that enables de-duplicating the objects and detecting
+conflicts between branches. In distributed databases like Dynamo [19], Merkle-Trees are used for efficient comparison and
+reconciliation of the state between replicas. In Hash Histories
+[22], content addressing is used to refer to a Merkle-Tree
+representing a state.
+Merkle-DAGs are also the foundational block of
+blockchains—they can be seen as a Merkle-DAG with a single
+branch—and their most common application: cryptocurrencies
+(e.g., [3], [1], [18]). Cryptocurrencies like Bitcoin [26] benefit
+from the embedded causality information encoded in the chain:
+transactions in a block deeper in the chain always happened
+before those of earlier blocks. One of the main issues in
+cryptocurrencies is to make all participating peers agree about
+the tip/head/root of the chain. Among other things, the noncommutative nature of some transactions, requires a consensus
+mechanism which enforces that only valid blocks become the
+new roots.
+One commonality in many of these systems is that the
+Merkle-DAG implicitly embeds causality information. The
+DAG can show that a certain transaction precedes another
+or that a Git commit needs to be merged rather than fastforwarded. This will be one of the properties that we use in
+Merkle-CRDTs and that this paper makes explicit and puts in
+contrast with other causality-encoding mechanisms known as
+logical clocks.
+C. Logical clocks
+The design of causally-convergent systems involves the reconciliation of diverging state versions among different replicas
+when, for example, events occur concurrently.
+This requires that we are able to identify whether two
+events actually happened concurrently and whether two states
+are actually different because of concurrent updates or other
+reasons, such as one replica having received more updates.
+The problem is, essentially, tracking the order in which
+different events happened. For example, given multiple writes
+of a value to a register in different replicas, we would expect
+the final value in the registry to be that of the last write.
+Ideally, we should be able to order all the events in the
+system9
+so that we can identify which was the actual last
+update to the register.
+8Hash functions are one way functions. Creating a cycle should then be
+impossibly difficult, unless some weakness is discovered and exploited.
+9This means establishing a total strict order for all the events.
+Tagging events with timestamps can give us this information: if all events are timestamped, any replica may establish
+the order in which they happened and use that information
+to decide what the final state should look like. However, In
+distributed systems, it is not possible to use timestamps reliably
+[27], as not every replica can be perfectly synced to a global
+time. “Wall clocks” can also easily be simulated or spoofed,
+which is problematic in peer-to-peer systems with no trust
+involved.
+Logical clocks are the alternative to global time. They
+provide ways to encode causal information between events
+known to different actors in a distributed system.
+The basic idea is that, although we may not know the order
+in which all events happened globally, every replica knows at
+least the order of events issued by itself. Any other replica that
+receives that information will then know that any events later
+issued by itself come after those. This is, in essence, what is
+known as causal history.
+Logical clocks are representations of causal histories [12]
+and provide a partial ordering between events. That is, given
+two events a and b, logical clocks should be able to tell us if
+a happened before b (a → b), or vice-versa (b → a), or if both
+a and b happened concurrently (a k b).
+The practical implementation of logical clocks usually
+involves metadata which travels attached to every event in the
+system. One of the most common forms of logical clocks are
+version vectors [28]: every replica maintains and broadcasts a
+vector that tracks on which version the state of all the replicas
+is. When a replica performs a modification of the state, it
+increases its version. When a replica merges a state from a
+different replica, it takes the highest between the local versions
+and the versions provided by the other replica along with the
+event. Thus, given two events a, b, with version vectors V
+a
+,
+V
+b
+: a → b if V
+a
+i ≤ Vb
+i
+for each position i in the vectors. If
+a 6→ b and b 6→ a, by that definition, a and b are concurrent.
+As we see, version vectors are compact because they do
+not need to store the full causal history but merely a number
+indicating how long the history is for every replica. Version
+vectors depend on the number of replicas, so they may need
+further optimizations to work well in scenarios with many
+replicas or where the number of replicas is not stable.
+In this paper we demonstrate that a Merkle-DAG can act
+as a logical clock. Merkle-Clocks, as we will show, provide
+a different set of properties but encode the same causal
+information about events.
+D. Conflict-Free Replicated Data Types (CRDTs)
+CRDTs are data types which provide strong eventual
+consistency among different replicas in a distributed system by
+requiring certain properties from the state and/or the operations
+that modify it. Additionally, CRDTs also feature monotonicity.
+The concept of monotonicity applied to data types is the notion
+that every update is an inflation, making the state grow, not in
+size, but in respect to a previous state. This implies that there
+will always be an order between states. Monotonicity implies
+that rollbacks on the state are not necessary regardless of the
+order in which updates happen.
+There are two prominent types of CRDTs: state-based and
+operation-based CRDTs. In state-based CRDTs, all the states
+in the system —that is, the states in different replicas and
+different moments— form a monotonic join-semilattice. That
+means that, for any two states X and Y , both can be ”joined”
+(merged, or form a union) (⊔) and the result is a new state
+corresponding to the Least-Upper-Bound (LUB) of the two
+[30]. In other words, every modification made to a state by
+a replica must be an inflation and the union of two states
+X and Y is the minimal state capable of containing both X
+and Y and not more (the LUB). A join-semilattice is thus a
+partially ordered set and its LUB is the smallest state capable of
+containing all the states in the semilattice. This implies that the
+⊔ operation must be idempotent (X ⊔ X = X), commutative
+(X⊔Y = Y ⊔X) and associative ((X⊔Y )⊔Z = X⊔(Y ⊔Z)).
+Replicas in a state-based CRDT modify their state—or
+inflate it—and broadcast the resulting state to the rest of
+replicas10. Upon receiving the state, the other replicas merge
+it with the local state. The properties of the state ensure that,
+if the replicas have correctly received the states sent by other
+replicas—and vice-versa—, they will eventually converge.
+Operation-based CRDTs [30], on the other side, do not
+enforce any property on the state itself but on the operations
+used to modify it, which must be commutative (at least
+with regard to a different operation issued at the same time
+(concurrently). The replicas broadcast the operations and not
+the states. If two operations happen at the same time in two
+replicas, the order in which other replicas apply them does not
+matter: the resulting states will be the same.
+It follows that, if an operation broadcast does not arrive
+to a replica —for example due to a network failure—, that
+replica will never be able to apply it and the states will not
+converge. Thus, unlike state-based CRDTs, eventual consistency in operation-based CRDTs requires a reliable messaging
+layer that eventually delivers all operations [11]. Additional
+constraints may be necessary, for example, if operations are
+not idempotent: in that case, the messaging layer should ensure
+that each operation is delivered exactly once.
+Some operation-based CRDTs may also require causal
+delivery: if a replica sends operation a before b (a → b), then
+a should always be delivered before b to a different replica.
+These properties and requirements in both state and
+operation-based CRDTs ensure per-object causal consistency:
+updates to a state will maintain the causal relations between
+them. For example, in a Grow-Only Set (G-Set), when a replica
+adds element A and then element B, no other replica will ever
+have a set where B is part of the set but A is not. 11
+.
+Logical clocks, as seen in the previous section, are commonly used to implement CRDT types: they are useful to
+10An important note here is that CRDTs are just data types. The transmission policy of CRDT objects between replicas is independent. Some CRDTs
+are, by design, better suited to some broadcasting mechanisms than others
+and can facilitate optimizations such as broadcasting only to a random subset
+rather than to every replica.
+11This is clear for an operation-based implementation of a G-Set (assuming
+causal delivery of the operations). The state-based implementation of a G-Set
+involves sending the full set. Thus, the event adding B is a set which already
+contains A: there will not be a set where B is present but not A, even if the
+event that added A was lost or arrives later.
+identify when two updates happen concurrently and need
+merging. CRDTs have been successfully used and optimized in
+different applications and distributed databases, Basho’s Riak
+[15], [16] being one of the most prominent examples.
+E. Sync Protocols in Information-Centric Networks
+There are multiple types of logical clocks that are similar
+to version vectors discussed earlier, but fulfil different needs
+or address some of their shortcomings: vector clocks [21],
+bounded version vectors [8], dotted version vectors [29], tree
+clocks [24] or interval tree clocks [9] are some of them.
+There has been a recent body of work in distributed dataset
+synchronisation in the area of Information-Centric Networks
+(ICN) [32], [31], [35], [7]. Information-Centric architectures
+are advocating direct content naming at the network layer and
+subsequent routing and forwarding (by core network routers),
+based on content names and (in some cases) longest-prefix
+matching.
+ChronoSync [35] is utilising the features of the NamedData Networking architecture [34] to synchronise state between different datasets. ChronoSync is a data-layer mechanism, which, however, takes advantage of the hierarchical
+and flexible naming scheme that NDN is building on. Inspired
+by Merkle Trees, ChronoSync is using cryptographic digests
+and filters to synchronise datasets between peers. ChronoSync
+takes advantage of the name-based nature of the underlying
+network (NDN) and is assigning a unique publishing prefix to
+each peer. This unique prefix, together with sequence numbers
+and network layer persisting/long-lived “Interest packets” is
+replacing much of what other approaches attempt to do with
+clocks and CRDTs. While integrating sync functionality at the
+network layer allows for more native designs, some features
+are inevitably lost. For example, ChronoSync cannot deal with
+simultaneous (concurrent) data publication. RoundSync [32] is
+partially solving this problem by splitting the sycnhronisation
+process in rounds.
+VectorSync [31] is an enhanced version of ChronoSync
+[35] which uses version vectors to make synchronisation
+between peers more efficient. Version vectors are more efficient
+in detection of inconsistencies, than simple message digests, as
+mentioned earlier. However, similarly to other proposals in the
+area, VectorSync needs to realise a ‘leader-based membership
+management’ in order to deal with active members that update
+the state of the dataset.
+The integration of distributed dataset synchronisation features natively at the network layer of the network is clearly
+an advanced endeavour, which comes with its own challenges.
+We believe that the advantage of “transport-agnostic” state synchronisation brought by Merkle-CRDTs can apply and improve
+the performance of protocols such as ChronoSync, RoundSync
+or VectorSync. On the other hand, handling Merkle-CRDTbased state synchronisation directly through named network
+objects brings standard ICN advantages to Merkle-CRDTs.
+As such we consider those two distinct approaches to state
+synchronisation as complementary.
+F. IPFS: The InterPlanetary File System
+IPFS [14] is a content-addressed, distributed filesystem. It
+uses a Distributed Hash Table (DHT) to announce and discover
+which replicas (or peers) provide certain Merkle-DAG nodes.
+It implements a node-exchange protocol called bitswap to
+retrieve DAG nodes from any provider. IPFS is built on top of
+libp2p [5], a modular network protocol stack for P2P networks,
+which additionally provides efficient broadcasting mechanisms
+primarily based on publish-subscribe models [2].
+IPFS also uses IPLD, the InterPlanetary Linked Data Format [4], a framework to describe Merkle-DAGs with arbitrary
+node formats and support for multiple types of CIDs [6],
+making it very easy to create and sync custom DAG nodes.
+These features make IPFS a suitable layer on which to
+implement Merkle-CRDTs, as it provides the necessary mechanisms to discover, route and announce content in potentially
+very large networks. This is not to say that other transport
+mechanisms are not suitable to build Merkle-CRDTs on top.
+III. SYSTEM MODEL & ASSUMPTIONS
+Our Merkle-CRDT approach is intended to be both simple
+and facilitate the use of CRDTs in peer-to-peer distributed
+systems with large number of replicas and no message delivery
+guarantees (i.e., unreliable transports).
+We assume the presence of an asynchronous messaging
+layer which provides a communication channel between separate replicas. This channel is managed by two facilities which
+every replica exploits: the DAG-Syncer and the Broadcaster
+components (defined below).
+We assume that messages can be dropped, reordered,
+corrupted or duplicated. It is not necessary to know beforehand
+the number of replicas participating in the system. Replicas can
+join and leave at will, without informing any other replica.
+There can be network partitions but they are resolved as soon
+as connectivity is re-established and a replica broadcasts a new
+event.
+Replicas may have durable storage, depending on their
+own requirements and data types. Using Merkle-CRDTs, new
+replicas and crashed replicas without durable storage will be
+able to eventually re-construct the complete state of the system
+as long as at least one other replica is in the latest system state.
+A. The DAG-Syncer component
+A DAG-Syncer is a component that enables a replica to
+obtain remote Merkle-DAG nodes from other replicas given
+their content identifiers (CIDs) and to make its own nodes
+available to other replicas. Since a node contains links to their
+direct descendants, given the root node’s CID, the DAG-Syncer
+component can be used to fetch the full DAG by following the
+links to children in each node. Thus, we can define the DAGSyncer as follows:
+Definition 1. (DAG-Syncer). A DAG-Syncer is a component
+with two methods:
+• Get(CID) : Node
+• Put(Node)
+We do not specify any more details such as how the
+protocol to announce and retrieve nodes looks like. Ideally,
+the DAG-Syncer layer should not impose any additional constraints on the system model. Our approach relies on the
+properties of the DAG-Syncer and Merkle-DAGs to tolerate
+all the network contingencies described above.
+B. The Broadcaster component
+A Broadcaster is a component to distribute arbitrary data
+from one replica to all others (directly or through relays).
+Ideally, the payload will reach every replica in the system,
+but this is not a requirement for every broadcast message:
+Definition 2. (Broadcaster). A Broadcaster is a component
+with one method:
+• Broadcast(Data)
+C. IPFS as a DAG-Syncer and Broadcaster component
+The components above can be realised by using IPFS (as
+introduced in Section II). IPFS can act as the DAG-Syncer,
+while one of the PubSub mechanisms provided by its libp2p
+layer can perform the tasks of the Broadcaster component.
+Such an implementation should allow extreme scalability
+of the replica set in general. The peers in the network do
+not need to be fully connected to everyone else and the
+system is extremely modular and configurable to fit both small
+devices and large storage servers. The choice of settings and
+implementations will affect the performance of the system
+under different circumstances and network topologies but is
+independent from the Merkle-CRDT objects and datatype.
+IV. MERKLE-CLOCKS
+A. Overview
+A Merkle-Clock M is a Merkle-DAG where each node
+represents an event. In other words, given an event in the
+system, we can find a node in this DAG that represents it
+and that allows us to compare it to other events.
+The DAG is built by merging other DAGs (those in other
+replicas) according to some simple rules. New events are added
+as new root nodes (parents to the existing ones). Note that the
+Merkle-Clock may have several roots at a given time.
+For example, given Mα and Mβ (α and β being the single
+root CIDs in those DAGs12):
+1) If α = β no action is needed, as they are the same DAG.
+2) else if α ∈ Mβ, we keep Mβ as our new Clock, since the
+history in Mα is part of it already. We say that Mα < Mβ
+in this case.
+3) else if β ∈ Mα, we keep Mα for the same reason. We
+say that Mβ < Mα in this case.
+4) else, we merge both Clocks by keeping both DAGs as they
+are and thus having two root nodes, those referenced by
+α and β. Note that Mα and Mβ could be fully disjoint
+or not, depending on whether they share some of their
+deeper nodes. If we wish to record a new event, we can
+create a new root γ with two children, α and β.
+We can already see that, by determining if one MerkleClock is included in another, we are introducing the notion
+of order among Merkle-Clocks. In the same way, we have a
+notion of order among the nodes in each clock, since events
+that happened earlier will always be descendants of events
+that happened later. Additionally, we have introduced a way
+12In the example we assume, without loss of generality, that we start with
+DAGs containing a single root instead of several.
+to merge Merkle-Clocks according to how they compare. The
+resulting Merkle-Clock always includes the causality information from both Merkle-Clocks. This eventually means that the
+causality information stored in Merkle-Clocks in every replica
+will converge to the same Merkle-Clock after merging.
+The causal order provided by Merkle-Clocks is embedded
+when building Merkle-DAGs with similar rules and usually
+overlooked as something very intuitive. It is important, however, to formalize how we define order between Merkle-Clocks
+and to prove that the causality information is maintained when
+they are synced and merged. This is the subject of the next
+section and will be an important property for Merkle-CRDTs.
+B. Merkle-Clocks as a convergent, replicated data type
+This section formalizes the definition of Merkle-Clocks and
+their representation as Merkle-Clock DAGs. We will show that
+Merkle-Clock DAGs can be seen as a Growing-Set (G-Set)
+CRDT and therefore converge in multiple replicas.
+Let S be the set of all system events:
+Definition 3. (Merkle-Clock Node). A Merkle-Clock Node nα
+is a triple:
+(α, eα, Cα)
+which represents an event eα ∈ S , with α being the node
+CID and Cα being the CID-set of nα’s direct descendants.
+Definition 4. (Merkle-Clock DAG). A Merkle-Clock DAG is
+a pair:
+hN, ≤i
+where N is a set of immutable DAG-nodes and a partial order
+≤ on N, defined as follows:
+nα, nβ ∈ N : nα < nβ ⇔ nα is a descendant of nβ
+In other words, nα < nβ if there is a path of linked nodes
+which goes from nβ to nα.
+In order to maintain this relationship, the Merkle-Clock
+DAG must be built with the following Implementation Rule:
+IR. Every new event in the system must be represented as
+a new root node to the existing Merkle-Clock DAG(s). In
+particular, the C set must contain the CIDs of the previous
+roots.
+Definition 5. (Merkle-Clock). A Merkle-Clock (M) is a
+function which given an event eα ∈ S returns a node from
+the Merkle-Clock DAG N:
+M : S → N
+Remark. A Merkle-Clock satisfies the Strong Clock condition
+[23]. We see that every node represents a later event than that
+of its children:
+∀(β, eβ, Cβ) ∈ N : ∀α ∈ Cβ : eα → eβ
+Since every event is the root of a (sub)DAG built using
+the implementation rule, we can immediately see that earlier
+Merkle-Clock values are descendants of the later ones:
+M(eα) < M(eβ) ⇔ eα → eβ
+We can now define a join-semilattice of Merkle-Clocks
+DAGs as a pair:
+hJ, ⊆Ji
+where J is a set of Merkle-Clocks DAGs and ⊆J a partial order
+over that set defined as follows. Given M, N ∈ J:
+M ⊂J N ⇔ ∀m ∈ M, ∃n ∈ N | m < n ⇔ M ⊂ N
+Note that m < n, means that m is a descendant of n and thus
+must belong to the same DAG, then ⊂J simply means that M
+is a subset of N.
+This allows us to define the Least-Upper-Bound of two
+Merkle-Clocks DAGs (⊔J) as the regular union of the sets:
+M ⊔J N = M ∪ N
+Unsurprisingly, the Merkle-Clock representation corresponds in fact to a Grow-Only-Set (G-Set) in the state-based
+CRDT form [33]. The elements of the set are immutable,
+cryptographically linked and represent the events in the system.
+When the DAGs are disjoint, the resulting DAG will include
+the roots from both N and M. That is the equivalent of having
+several events without causal relationship. Causality information about DAG-merge events can be optionally included after
+the union of the DAGs by creating a new unique root following
+the implementation rule.
+In the next section we will see how the properties of
+Merkle-DAGs allow syncing Merkle-Clocks in a more efficient
+manner than regular state-based G-Sets.
+C. The Merkle in the Clocks: properties of Merkle-Clocks
+We have so far defined a way to encode causality information per replica and ensured that two replicas can merge
+their Merkle-Clocks. Now we will see how the properties
+of Merkle-DAGs allow the use of a pull rather than a push
+approach which, together with content-addressing, enables
+efficient clock sync between replicas and overcomes the effect
+of network partitions or contingencies. The steps to MerkleClock synchronisation between replicas are given below.
+1) Broadcasting the Merkle-Clock requires broadcasting
+only the current root CID. The whole Clock is unambiguously identified by the CID of its root and its full
+DAG can be walked down from it as needed.
+2) The immutable nature of a Merkle-DAG allows every
+other replica to perform quick comparisons and pull/fetch
+only those nodes that it does not already have.
+3) Merkle-DAG nodes are self-verified, through their CID,
+and, therefore, immune to corruption and tampering.
+Hence, they can be fetched (pulled) from any source
+willing to provide them, trusted or not.
+4) Identical nodes are de-duplicated by design: there can
+only be one unique representation for every event.
+In practice, every replica just fetches the delta causal
+histories from other replicas without the need to build those
+deltas explicitly anywhere in the system. A completely new
+replica with no previous history will fetch the full history
+automatically13
+.
+13This is how peers participating in cryptocurrency minning sync their
+ledgers.
+Merkle-Clocks can replace version clocks and other logical
+clocks that are usually part of CRDTs. This comes with some
+considerations:
+• By using Merkle-Clocks we can decouple the causality
+information from the number of replicas, which is a common limitation in version clocks. This makes it possible
+to reduce the size of the messages when implementing
+CRDTs and, most importantly, solves the problem of
+keeping clocks working when replicas randomly join and
+leave the system.
+• On the downside, the causal information grows with every
+event and replicas store potentially large histories even if
+the event information is consolidated into smaller objects.
+• Keeping the whole causal history enables new replicas to
+sync events from scratch out-of-the-box, without having
+to explicitly send system snapshots to newcomers. However, that syncing may be slow if the history is very large.
+We will explore, along with Merkle-CRDTs, potential
+optimizations in this regard.
+A significant advantage of Merkle-Clocks over traditional
+version clocks is that they can also deal with several types of
+network anomalies:
+• Dropped messages may prevent other replicas from learning about new roots. But since every Merkle-Clock DAG
+is superseeded by future DAGs and every download
+fetches all the missing parts of a DAG, network partitions
+and replica downtimes do not have an effect on the overall
+system and will begin to heal automatically once the
+issues are resolved.
+• Out of order delivery poses no problem for the same
+reasons. The missing DAG will be fetched and processed
+in order.
+• Duplicated messages are just ignored by replicas as they
+are already incorporated into their Merkle-Clocks.
+• Corrupt messages come in two forms: a) if the message
+broadcasting a new root is corrupted, then it will be a
+hash corresponding to a non-existent DAG that cannot
+be fetched by the DAG-Syncer and will be eventually
+ignored; b) if a DAG node is corrupted on download, the
+DAG-Syncer component (or the application) can discard
+it if its CID does not match the downloaded content.
+As we showed in the previous section, Merkle-Clocks
+represent a strict partial order of events. Not all events in
+the system can be compared and ordered. For example, when
+having multiple roots, the Merkle-Clock cannot say which of
+the events happened first.
+A total order can be useful [23] and could be obtained, for
+example, by considering concurrent events to be equal. Similarly, a strict total order could be built by sorting concurrent
+events by the CID of their nodes or by any other arbitrary
+user-defined strategy based on additional information attached
+to the clock nodes. Any such approach would qualify as datalayer conflict resolution.
+V. MERKLE-CRDTS: MERKLE-CLOCKS WITH PAYLOAD
+Definition 6. (Merkle-CRDT). A Merkle-CRDT is a MerkleClock whose nodes carry an arbitrary CRDT payload.
+Merkle-CRDTs keep all the properties seen before for
+Merkle-Clocks. However, for the payloads to converge, they
+need to be convergent data types (CRDTs) themselves. The
+advantage is that Merkle-Clocks already embed ordering and
+causality information which would otherwise need to travel
+embedded in the CRDT objects (usually in the form of other
+logical clocks). or be provided by a reliable messaging layer.
+Thus, the implementation of a Merkle-CRDT node is:
+(α,P, C)
+with α being the content identifier, P an opaque data object
+with CRDT properties and C the set of children identifiers.
+A. Per-object causal consistency and gap detection
+The directed-link nature of Merkle-CRDTs, which allows
+traversing the full causal history of the system in the order
+of events, provides all the necessary properties to ensure perobject causal consistency and gap detection by design without
+modifying our system model.
+This means that Merkle-CRDTs are very well suited to
+carry operation-based CRDTs as they can ensure that no
+operation is lost or applied in disorder14
+.
+To facilitate the task of processing CRDT payloads in
+Merkle-CRDTs, in the next section we present a general and
+simple (non-optimized) anti-entropy algorithm that can be
+used to obtain per-object causal consistency for any CRDT
+embedded object.
+B. General anti-entropy algorithm for Merkle-CRDTs
+Definition 7. (General anti-entropy algorithm for MerkleCRDTs).
+Let RA and RB be two replicas using Merkle-CRDTs with
+Mα and Mθ respectively as their current Merkle-CRDT DAG.
+1) RB issues a new payload by creating a new DAG node
+(β, P, {θ}) and adding it as the new root to its MerkleCRDT, which becomes Mβ.
+2) RB broadcasts β to the rest of replicas in the system.
+3) RA receives the broadcast of β and retrieves the full Mβ.
+It does this by starting from the root β and walking down
+the DAG using the DAG-Syncer component to fetch all
+the nodes that are not in Mα, while collecting their CIDs
+in a CID-Set D. Given the inherent properties of DAGs,
+for any CID already in Mα the whole sub-DAG can be
+skipped.
+4) If D is empty, no further action is required. RA must have
+already processed all the payloads in Mβ. This means that
+Mβ ⊆ Mα.
+5) If D is not empty, we sort the CIDs in D using the order
+provided by the Merkle-Clock.
+We can skip the ordering if causal delivery is not a
+requirement in our system. The amount of items in D will
+14Recall that the Merkle-Clock provides a strict partial order of events. In
+this case, two non-concurrent operations applied to an object will be sortable
+by the clock.
+depend on the amount of concurrency in the system and
+how long the two Merkle-CRDTs have been allowed to
+diverge, but should be small under normal circumstances.
+6) RA processes the payloads associated with the nodes
+corresponding to the CIDs in D, from the lowest to the
+highest.
+7) If α ∈ D, then Mα ⊆ Mβ and Mβ becomes the new
+local Merkle-CRDT in RA.
+8) else, Mα 6⊂ Mβ and Mβ 6⊂ Mα. RA keeps both nodes
+as roots.
+C. Operation-based Merkle-CDRTs
+Definition 8. Operation-based Merkle-CRDTs are those in
+which nodes embed an operation-based CRDT payload.
+Operation-based Merkle-CRDTs are the most natural application of Merkle-CRDTs. Operations are easy to define, as
+they just need to be commutative, so that the resulting state will
+be the same in every replica regardless of the order in which
+they have received the operations. However, that also means
+that for states to converge, every operation must be received.
+A reliable messaging layer [11] is then a prerequisite for
+convergence, but in real world networks with a large number of
+replicas it is usually not possible to ensure that no message is
+lost. This leaves us with complex workarounds, like additional
+causality payloads, buffering and retry mechanisms that must
+accompany the CRDT implementation, turning what should be
+a simple CRDT implementation into something considerably
+more complicated.
+Merkle-DAGs provide all the properties of a messaging
+layer where messages are always delivered in order, verified
+and never repeated nor dropped. Thus, Merkle-CRDTs enable
+operation-based CRDTs in contexts where they could not be
+easily used before.
+As we saw, thanks to the Merkle-DAG in which they are
+embedded, each replica only needs the missing parts of the
+DAG and these can be fetched once the root is known. This
+includes new replicas joining the system, which will be able
+to fetch and apply all operations. We do not need to keep
+knowledge of the full replica set and place the responsibility
+of efficient broadcast in the Broadcaster component.
+D. State-based Merkle-CRDTs
+Definition 9. State-based Merkle-CRDTs are those in which
+nodes embed a state-based CRDT payload.
+Embedding full states in each Merkle-CRDT node is
+counter-intuitive since state-based CRDTs already provide
+per-object causal consistency and can cope with unreliable
+message layers by design.
+Moreover, although the final state would result from the
+merge of all the states in the Merkle-CRDT nodes, the DAGSyncer component would still need to store those states,
+something prohibitive when working with large state objects.
+That said, Merkle-CRDTs remove the need to attach causality
+metadata and detach it from the number of replicas, which
+might be of interest for state-based CRDTs with very small
+states in comparison to the number of replicas.
+A more interesting approach is that of δ-CRDTs [10]
+which, instead of broadcasting full states, are able to send
+smaller sections (deltas). δ-mutations, as these objects are
+called, can be merged downstream just like any full state would
+be, without the need for changing the semantics of the union
+operation. It follows that multiple deltas can be merged to form
+what is known as δ-groups and increase the efficiency of the
+broadcast payloads. As pointed out in [10], ”a full state can
+be seen as a special (extreme) of a delta-group”.
+In the vanilla form of δ-CRDTs, however, consistency is
+delayed ad-infinitum when a message is lost and the perobject causal consistency property of state-based CRDTs is
+lost. These issues can be addressed with an additional antientropy algorithm that groups, sorts, tracks delivery and resends missing deltas, as presented in [10], but in the case
+of δ-state-Merkle-CRDTs, the anti-entropy algorithm and any
+causal information attached to the original objects would not
+be necessary. In essence, this approach brings δ-state MerkleCRDTs closer to their operation-based counterpart.
+VI. LIMITS AND OPTIMIZATIONS OF MERKLE-CRDTS
+A. Limitations of Merkle-CRDTs
+We have so far focused on explaining the different qualities
+that Merkle-CRDTs provide when compared to traditional
+CRDT approaches, but we must also highlight what intrinsic
+and practical limitations they bring.
+a) Ever-growing DAG-Size: The most obvious consequence of Merkle-CRDTs is that, while CRDTs normally
+merge, apply, consolidate and discard broadcast objects,
+Merkle-CRDTs build a permanent Merkle-DAG which must
+be stored and is ever-growing. As we have seen, this provides a
+number of advantageous properties, but also comes with some
+implications:
+• The size of the DAG might grow larger than acceptable.
+The rate of growth will depend on the number of the
+events and the size of the payloads. This is very similar
+to how blockhains grow to large sizes in time15. For example, in a non-batched implementation, every insertion
+to a CRDT key-value store implementation will result in
+a new DAG-node. Thus, for every key we will consume
+additional amount of space which, in the case of small
+objects, will likely be larger than the original object itself.
+This is especially problematic when the actual state might
+be much smaller, for example when repeatedly updating
+a single key in a database. In some cases, it might be
+possible to express the state as a compact of the result of
+all the Merkle-CRDT operations, but this brings us to the
+next point.
+• If replicas store the Merkle-DAG only, knowing that the
+full state can be rebuilt from it (and thus saving that
+space), starting replicas with very large Merkle-DAGs
+might be especially slow since they will need to reprocess
+the full DAG, even when available locally. If not, there
+15Bitcoin chain uses more than 220GB and Ethereum (Parity) more than
+165GB as of this writing.
+will be redundant information stored in both the resulting
+state and in the Merkle-DAG.
+• Merkle-CRDT syncs from scratch are possible and natural
+to the system when a new replica joins. However, MerkleDAGs are not only ever-growing but also tend to be deep
+and thin16. A new replica will learn the root CID from a
+broadcast operation and will need to resolve the full DAG
+from it. Because of the thinness, it will not be possible
+to fetch several branches in parallel. Cold-syncs may take
+significantly longer than it would take to ship a snapshot,
+thus rendering this embedded property of Merkle-DAGs
+of little value.
+Very large DAGs and slow syncs are not a problem in some
+scenarios and can be seen as an acceptable trade-off, but do
+highlight the need of exploring “garbage collection” and DAG
+compaction mechanisms.
+b) Merkle-Clock sorting: Merging two Merkle-Clocks
+requires comparing them to see if they are included in one
+another and finding differences. This may be a costly operation
+if DAGs have diverged significantly (or long ago).
+c) DAG-Syncer latency: Replicas rely on a DAGSyncer component to fetch and provide nodes from and to
+the messaging layer. As mentioned earlier, Merkle-CRDTs are
+agnostic to the mechanism used to synchronise messages (e.g.,
+DHT or PubSub), but unless chosen carefully, this mechanism
+might introduce sync delay. Depending on application requirements, this delay might or might not be acceptable.
+The practical impact of these limitations depends on the
+requirements of the application. In particular, when thinking
+about adopting Merkle-CRDTs, users should consider whether
+Merkle-CRDTs are the best approach in terms of: i) Node
+count vs. state-size, ii) Time to cold-sync, iii) Update propagation latency, iv) Expected total number of replicas, v) Expected
+replica-set modifications (joins and departures), vi) Expected
+volume of concurrent events.
+B. Optimizing Merkle-CRDTs
+a) Delayed DAG nodes: In scenarios where replicas
+issue frequent updates, we can group multiple payloads before
+issuing a single node containing all of them. It is clear that
+this approach will bring some benefits, which however, comes
+with trade-offs: updates are not immediately sent out and will,
+therefore, take longer to propagate.
+b) Quick Merkle-DAG inclusion check: M erging the
+local replica DAGs with a remote one requires checking if
+one DAG includes the other. It is possible but inefficient to
+do so by walking down the first DAG looking for a node
+CID that matches the root of the second. Storing the CIDs
+of the local DAG in a key-value store that can quickly check
+whether a CID is part of the local DAG or not makes things
+significantly easier17. When walking the remote DAG to check
+for inclusion of the local DAG, the CIDs of the children of any
+16The Merkle-DAGs will be thin in the absence of many concurrent events,
+or have a high branching factor otherwise. In both cases, branches are
+consolidated every time a new event is issued from a replica, thus creating
+thin waists in the DAG.
+17Fast key-value stores, such as in-memory ones, will normally pay a high
+memory footprint penalty, while disk-backed ones will be slower.
+of its nodes can be checked to see if they are part of the local
+DAG in which case their branches can be conveniently pruned.
+This implies, however, that the implementation must be aware
+and have access to the local storage system for nodes. The
+DAG-Syncer, as currently defined, cannot differentiate between
+nodes available locally or remotely. Bloom filters, caches and
+some data structures can also improve efficiency, but they are
+usually part of the chosen storage backend.
+A similar effect can be achieved by embedding version vectors in the payloads, as long as the application can tolerate the
+constraints they impose. Comparing version vectors between
+payloads is an inclusion check without the need to perform a
+DAG-walking.
+c) Broadcast payload adjustments:: Our standard approach reduces the size of the broadcasts by including only
+the CID of the new roots. Publishing mechanisms are complex
+enough and always benefit from smaller payloads.
+However in some systems it may be beneficial to send new
+Merkle-DAG nodes directly as part of the broadcast payloads.
+Replicas that are offline or dropped messages will recover
+when they receive a future update and complete their DAGs,
+so this has no effects in that regard. Broadcasting the payloads
+(assuming they are small enough) will likely reduce the latency
+of the propagation of changes in the system.
+d) Reducing the Merkle-DAG node size: We can attempt to reduce the size of the payloads as much as possible by
+compressing and removing redundant information not required
+by the CRDT itself. For example, instead of signing the CRDT
+payloads to ensure that they come from a trusted replica, we
+can sign the broadcast messages, thus leaving signatures out
+of the Merkle-DAG.
+Another option is to make the payload (or parts of it)
+CIDs to reference the actual contents. If the payloads are big,
+this will greatly reduce the size of the Merkle-DAG and may
+increase the efficiency of the DAG fetching. This is especially
+relevant when some of the payloads are identical and can be
+de-duplicated, or when it is possible to access part of the data
+opportunistically.
+e) Additional pointers in nodes:: One of the ways to
+work around the thin-DAG problem is to regularly introduce
+references to deeper parts of the DAG when issuing new nodes.
+This method is basically adding extra children to nodes. It
+allows more parallelism when fetching missing parts of the
+DAG by being able to jump to other sections of it, resulting in
+much faster traversals. The actual number of extra links and
+their destination will depend on the needs of the application.
+The above recommendations should be considered in any
+Merkle-CRDT implementation as they can provide significant
+advantages over the un-optimized version described previously.
+Which optimizations fit to which implementation is largely
+application-specific. We leave the topics of DAG compaction
+and garbage collection for future work, although we intuitively
+note that discarding parts of the Merkle-DAG should not be
+attempted before making sure that every replica is aware of
+them. This, in turn, requires either having knowledge of the
+current replica-set or using an external source of truth (i.e. a
+blockchain), a system constraint that we did not have before.
+VII. CONCLUSION
+In this paper we approached Merkle-DAGs as causalityencoding structures with self-verification and efficient syncing
+properties. This led us to introduce the concept of MerkleClock, demonstrating that they can be described as a statebased CRDT which, announced with a Broadcaster component
+and fetched with a DAG-Syncer facility, converges in all
+replicas.
+We then presented Merkle-CRDTs as Merkle-Clocks with
+CRDT payloads. We showed how Merkle-CRDTs work with
+almost no messaging layer guarantees and no constraints on the
+replica-set, which can be dynamic and unknown, while providing per-object causal consistency. Merkle-CRDTs are widely
+used in the IPFS ecosystem for database logging operations18
+,
+in OrbitDB19, a distributed, P2P database, its serverleess
+application, Orbit20, as well as distributed, collaborative
+editing21 and mobile photo-sharing applications22
+.
+Merkle-CRDTs are a marriage between traditional
+blockchains, which need consensus to converge, and CRDTs,
+which converge by design, and thus inherit positive and
+negative aspects from both worlds. With this work, we hope to
+have set a good foundation for further research on the topic.
+APPENDIX
+Merkle-CRDTs are very intuitive, even if they were not
+formalized before, and rely on well-known and widely used
+properties of Merkle-DAGs. Several projects in the IPFS
+ecosystem already use them23, all embedding operation-based
+CRDTs in Merkle-DAGs:
+• ipfs-log24 is, to our knowledge, the first existing
+instance of a Merkle-CRDT as described here. It implements an operation-based, append-only log CRDT
+(similar to a grow-only set).
+• ipfs-hyperlog25 is utility to build and replicate
+Merkle DAGs.
+• Orbit DB26 is a distributed, peer-to-peer database. It
+uses ipfs-log and other CRDTs for different data models. It is used to build Orbit27, a distributed, serverless
+chat application.
+• Tevere28 is an operation-based Merkle-CRDT key-value
+store.
+• peer-crdt29 and peer-crdt-ipfs30 provide a generalistic operation Merkle-CRDT implementations of several CRDTs: counters, sets, arrays, registers and text (as
+well as composable CRDTs).
+18https://github.com/orbitdb/ipfs-log
+19https://github.com/orbitdb/orbit-db
+20https://github.com/orbitdb/orbit
+21https://github.com/peer-base/peer-pad
+22textile.photos
+23The dynamic data and capabilities working group has started many discussions on the topic: https://github.com/ipfs/dynamic-data-and-capabilities.
+24https://github.com/orbitdb/ipfs-log
+25https://github.com/noffle/ipfs-hyperlog
+26https://github.com/orbitdb/orbit-db
+27https://github.com/orbitdb/orbit
+28https://github.com/ipfs-shipyard/tevere
+29https://github.com/ipfs-shipyard/peer-crdt
+30https://github.com/ipfs-shipyard/peer-crdt-ipfs
+• versidag31 is a proposed linked log with conflict resolution to store version information, similar to ipfs-log.
+• PeerPad32 is a real-time collaborative text editor based
+on peer-crdt and δ-CRDTs.
+• Textile.photos33 is a mobile, decentralized digital
+wallet for photos. Textile Threads (v1) [20] allow a group
+of users to share photos without a central database and
+are based on Merkle-CRDTs.
+• go-ds-crdt34 is a key-value distributed datastore implementation in Go using δ-state Merkle-CRDTs. It is
+used by IPFS Cluster35
+.
+REFERENCES
+[1] DAG Coin. https://dagcoin.org.
+[2] GossipSub: A Secure PubSub Protocol for
+Unstructured, Decentralised P2P Overlays.
+https://research.protocol.ai/posts/201912-resnetlab-launch/PL-TechRep-gossipsub-v0[3] IOTA. https://iota.org.
+[4] IPLD: The InterPlanetary Linked Data Format. https://ipld.io/.
+[5] libp2p: A Modular Network Protocol Stack for P2P Networks.
+https://libp2p.io/.
+[6] Multiformats: Self-describing values for Future-proofing.
+https://multiformats.io/.
+[7] Alexander Afanasyev, Zhenkai Zhu, Yingdi Yu, Lijing Wang, and Lixia
+Zhang. The story of chronoshare, or how ndn brought distributed secure
+file sharing back. In IEEE MASS, pages 525–530, 10 2015.
+[8] Jos´e Bacelar Almeida, Paulo S´ergio Almeida, and Carlos Baquero
+Moreno. Bounded version vectors. In International Conference on
+Distributed Computing - ICDCS, volume 3274, pages 102–116, Tokyo,
+Japan, March 2004. Springer, Springer.
+[9] Paulo S´ergio Almeida, Carlos Baquero, and Victor Fonte. Interval
+tree clocks. In Proceedings of the 12th International Conference on
+Principles of Distributed Systems, OPODIS ’08, pages 259–274, Berlin,
+Heidelberg, 2008. Springer-Verlag.
+[10] Paulo S´ergio Almeida, Ali Shoker, and Carlos Baquero. Efficient statebased CRDTs by delta-mutation. CoRR, abs/1410.2803, 2014.
+[11] Carlos Baquero, Paulo S´ergio Almeida, and Ali Shoker. Making
+operation-based CRDTs operation-based. In Proceedings of the First
+Workshop on Principles and Practice of Eventual Consistency, PaPEC
+’14, pages 7:1–7:2, New York, NY, USA, 2014. ACM.
+[12] Carlos Baquero and Nuno Preguic¸a. Why logical clocks are easy. ACM
+Queue, 14, April 2016.
+[13] Petr Baudis. Current concepts in version control systems. CoRR,
+abs/1405.3496, 2014.
+[14] Juan Benet. IPFS - content addressed, versioned, P2P file system (draft
+3), 2014.
+[15] Russell Brown, Sean Cribbs, Christopher Meiklejohn, and Sam Elliott.
+Riak dt map: A composable, convergent replicated dictionary. In
+Proceedings of the First Workshop on Principles and Practice of
+Eventual Consistency, PaPEC ’14, pages 1:1–1:1, New York, NY, USA,
+2014. ACM.
+[16] Russell Brown, Zeeshan Lakhani, and Paul Place. Big(ger) sets:
+decomposed delta CRDT sets in riak. CoRR, abs/1605.06424, 2016.
+[17] Scott Chacon and Ben Straub. Pro Git. Apress, Berkely, CA, USA, 4th
+edition, 2018.
+[18] Anton Churyumov. Byteball: A decentralized system for storage and
+transfer of value, 2016.
+[19] Giuseppe DeCandia, Deniz Hastorun, Madan Jampani, Gunavardhan
+Kakulapati, Avinash Lakshman, Alex Pilchin, Swaminathan Sivasubramanian, Peter Vosshall, and Werner Vogels. Dynamo: Amazon’s highly
+available key-value store, 2007.
+31https://github.com/ipfs/dynamic-data-and-capabilities/issues/50
+32https://github.com/ipfs-shipyard/peer-pad
+33https://www.textile.photos/
+34https://github.com/ipfs/go-ds-crdt
+35https://cluster.ipfs.io
+[20] Carson Farmer and Sander Pick. Textile Threads whitepaper. . . just
+kidding. . . a deeper look at the tech behind textile’s Threads protocol,
+October 2018.
+[21] C. J. Fidge. Timestamps in message-passing systems that preserve the
+partial ordering. Proceedings of the 11th Australian Computer Science
+Conference, 10(1):56–66, 1988.
+[22] Brent ByungHoon Kang, Robert Wilensky, and John Kubiatowicz. The
+hash history approach for reconciling mutual inconsistency. In Proceedings of the 23rd International Conference on Distributed Computing
+Systems, ICDCS ’03, pages 670–, Washington, DC, USA, 2003. IEEE
+Computer Society.
+[23] Leslie Lamport. Time, clocks, and the ordering of events in a distributed
+system. Commun. ACM, 21(7):558–565, July 1978.
+[24] Tobias Landes. Tree clocks: An efficient and entirely dynamic logical time system. In Proceedings of the 25th IASTED International
+Multi-Conference: Parallel and Distributed Computing and Networks,
+PDCN’07, pages 375–380, Anaheim, CA, USA, 2007. ACTA Press.
+[25] Ralph C. Merkle. A digital signature based on a conventional encryption
+function. In Carl Pomerance, editor, Advances in Cryptology —
+CRYPTO ’87, pages 369–378, Berlin, Heidelberg, 1988. Springer Berlin
+Heidelberg.
+[26] Satoshi Nakamoto. Bitcoin: A peer-to-peer electronic cash system,
+2009.
+[27] Geroge Neville-Neil. Time is an illusion. ACM Queue, 13(9), 2016.
+[28] D. S. Parker, G. J. Popek, G. Rudisin, A. Stoughton, B. J. Walker,
+E. Walton, J. M. Chow, D. Edwards, S. Kiser, and C. Kline. Detection
+of mutual inconsistency in distributed systems. IEEE Trans. Softw. Eng.,
+9(3):240–247, May 1983.
+[29] Nuno M. Preguic¸a, Carlos Baquero, Paulo S´ergio Almeida, Victor
+Fonte, and Ricardo Gonc¸alves. Dotted version vectors: Logical clocks
+for optimistic replication. CoRR, abs/1011.5808, 2010.
+[30] Nuno M. Preguic¸a, Carlos Baquero, and Marc Shapiro. Conflict-free
+replicated data types (CRDTs). CoRR, abs/1805.06358, 2018.
+[31] Wentao Shang, Alexander Afanasyev, and Lixia Zhang. Vectorsync:
+Distributed dataset synchronization over named data networking. In
+Proceedings of the 4th ACM Conference on Information-Centric Networking, ICN ’17, page 192–193, New York, NY, USA, 2017. Association for Computing Machinery.
+[32] Wentao Shang, Yingdi Yu, Lijing Wang, Alexander Afanasyev, and
+Lixia Zhang. A survey of distributed dataset synchronization in Named
+Data Networking. Technical Report NDN-0053, NDN, May 2017.
+[33] Marc Shapiro, Nuno Preguic¸a, Carlos Baquero, and Marek Zawirski. A
+comprehensive study of Convergent and Commutative Replicated Data
+Types. Research Report RR-7506, Inria – Centre Paris-Rocquencourt ;
+INRIA, January 2011.
+[34] Lixia Zhang, Alexander Afanasyev, Jeffrey Burke, Van Jacobson,
+kc claffy, Patric Crowley, Christos Papadopoulos, Lan Wang, and
+Beichuan Zhang. Named Data Networking. ACM Computer Communication Reviews, June 2014.
+[35] Zhenkai Zhu and Alexander Afanasyev. Let’s chronosync: Decentralized dataset state synchronization in named data networking. In
+Proceedings - International Conference on Network Protocols, ICNP,
+pages 1–10, 10 2013.
