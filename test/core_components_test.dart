@@ -4,29 +4,29 @@ import 'package:test/test.dart';
 void main() {
   group('CID Extended Tests', () {
     test('CID with empty string', () {
-      final cid = CID('');
+      final cid = MerkleDagCID('');
       expect(cid.value, equals(''));
       expect(cid.toString(), equals('CID()'));
     });
 
     test('CID.fromContent with empty string', () {
-      final cid = CID.fromContent('');
+      final cid = MerkleDagCID.fromContent('');
       expect(cid.value, isNotEmpty); // Should still generate a hash
     });
 
     test('CID.fromContent with special characters', () {
-      final cid1 = CID.fromContent('test\nwith\nnewlines');
-      final cid2 = CID.fromContent('test\nwith\nnewlines');
-      final cid3 = CID.fromContent('test with spaces');
+      final cid1 = MerkleDagCID.fromContent('test\nwith\nnewlines');
+      final cid2 = MerkleDagCID.fromContent('test\nwith\nnewlines');
+      final cid3 = MerkleDagCID.fromContent('test with spaces');
       
       expect(cid1, equals(cid2));
       expect(cid1, isNot(equals(cid3)));
     });
 
     test('CID.fromContent with Unicode characters', () {
-      final cid1 = CID.fromContent('Unicode: 😀🌍🚀');
-      final cid2 = CID.fromContent('Unicode: 😀🌍🚀');
-      final cid3 = CID.fromContent('Different: 🎉🎊');
+      final cid1 = MerkleDagCID.fromContent('Unicode: 😀🌍🚀');
+      final cid2 = MerkleDagCID.fromContent('Unicode: 😀🌍🚀');
+      final cid3 = MerkleDagCID.fromContent('Different: 🎉🎊');
       
       expect(cid1, equals(cid2));
       expect(cid1, isNot(equals(cid3)));
@@ -51,9 +51,9 @@ void main() {
 
     test('MerkleNode with large number of children', () {
       // Create 100 children
-      final children = <CID>{};
+      final children = <MerkleDagCID>{};
       for (var i = 0; i < 100; i++) {
-        children.add(CID('child$i'));
+        children.add(MerkleDagCID('child$i'));
       }
       
       final node = MerkleNode.create('parent', children);
@@ -73,8 +73,8 @@ void main() {
     });
 
     test('Two MerkleNodes with same payload but different children have different CIDs', () {
-      final children1 = {CID('child1')};
-      final children2 = {CID('child2')};
+      final children1 = {MerkleDagCID('child1')};
+      final children2 = {MerkleDagCID('child2')};
       
       final node1 = MerkleNode.create('same payload', children1);
       final node2 = MerkleNode.create('same payload', children2);
@@ -83,7 +83,7 @@ void main() {
     });
 
     test('MerkleNode.toString() contains payload and children info', () {
-      final children = {CID('child1'), CID('child2')};
+      final children = {MerkleDagCID('child1'), MerkleDagCID('child2')};
       final node = MerkleNode.create('test', children);
       
       final nodeString = node.toString();
@@ -101,16 +101,16 @@ void main() {
 
     test('GSet with initial elements', () {
       final initialElements = {'a', 'b', 'c'};
-      final set = GSet<String>(initialElements);
+      final set = GSet<String>.fromList(initialElements.toList());
       expect(set.elements, equals(initialElements));
     });
 
     test('GSet elements are unmodifiable', () {
       final set = GSet<String>();
       set.add('a');
-      
+
       // This should throw because elements returns an unmodifiable set
-      expect(() => set.elements.add('b'), throwsUnsupportedError);
+      expect(() => (set.elements as Set<String>).add('b'), throwsUnsupportedError);
     });
 
     test('GSet merge with empty set', () {

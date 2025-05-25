@@ -7,7 +7,7 @@ class MockDAGSyncer<T> implements DAGSyncer<T> {
   final Map<String, MerkleNode<T>> _nodes = {};
 
   @override
-  Future<MerkleNode<T>?> get(CID cid) async {
+  Future<MerkleNode<T>?> get(MerkleDagCID cid) async {
     return _nodes[cid.value];
   }
 

@@ -8,7 +8,7 @@ class MerkleClock<T> {
   final DAGSyncer<T> dagSyncer;
   
   /// The current root CIDs of the Merkle-Clock
-  Set<CID> _roots = {};
+  Set<MerkleDagCID> _roots = {};
   
   /// A cache of nodes by CID
   final Map<String, MerkleNode<T>> _nodeCache = {};
@@ -18,10 +18,10 @@ class MerkleClock<T> {
   });
 
   /// Returns the current root CIDs
-  Set<CID> get roots => Set.from(_roots);
+  Set<MerkleDagCID> get roots => Set.from(_roots);
 
   /// Adds a new node to the Merkle-Clock
-  Future<CID> addNode(T payload) async {
+  Future<MerkleDagCID> addNode(T payload) async {
     // Create a new node with the payload and current roots as children
     final node = MerkleNode.create(payload, _roots);
     
@@ -38,7 +38,7 @@ class MerkleClock<T> {
   }
 
   /// Merges another Merkle-Clock with this one
-  Future<void> merge(CID remoteCid) async {
+  Future<void> merge(MerkleDagCID remoteCid) async {
     // Get the remote node
     final remoteNode = await dagSyncer.get(remoteCid);
     if (remoteNode == null) return;
@@ -61,7 +61,7 @@ class MerkleClock<T> {
   }
 
   /// Checks if a CID is included in our DAG
-  bool _isIncluded(CID cid) {
+  bool _isIncluded(MerkleDagCID cid) {
     // If the CID is one of our roots, it's included
     if (_roots.contains(cid)) return true;
     
@@ -74,7 +74,7 @@ class MerkleClock<T> {
   }
 
   /// Checks if our DAG is included in the remote DAG
-  Future<bool> _isIncludedIn(CID remoteCid) async {
+  Future<bool> _isIncludedIn(MerkleDagCID remoteCid) async {
     // Check if all our roots are descendants of the remote CID
     for (final root in _roots) {
       if (!await _isDescendantOf(root, remoteCid)) return false;
@@ -84,7 +84,7 @@ class MerkleClock<T> {
   }
 
   /// Checks if a CID is a descendant of another CID
-  bool _isDescendant(CID descendant, CID ancestor) {
+  bool _isDescendant(MerkleDagCID descendant, MerkleDagCID ancestor) {
     // If they're the same, it's not a descendant
     if (descendant == ancestor) return false;
     
@@ -104,7 +104,7 @@ class MerkleClock<T> {
   }
 
   /// Checks if a CID is a descendant of another CID, fetching nodes as needed
-  Future<bool> _isDescendantOf(CID descendant, CID ancestor) async {
+  Future<bool> _isDescendantOf(MerkleDagCID descendant, MerkleDagCID ancestor) async {
     // If they're the same, it's not a descendant
     if (descendant == ancestor) return false;
     

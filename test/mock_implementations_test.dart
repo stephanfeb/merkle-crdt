@@ -11,13 +11,13 @@ void main() {
     });
 
     test('Get returns null for non-existent CID', () async {
-      final cid = CID('non-existent');
+      final cid = MerkleDagCID('non-existent');
       final node = await dagSyncer.get(cid);
       expect(node, isNull);
     });
 
     test('Put stores node and get retrieves it', () async {
-      final cid = CID('test-cid');
+      final cid = MerkleDagCID('test-cid');
       final node = MerkleNode<String>(
         cid: cid,
         payload: 'test-payload',
@@ -34,7 +34,7 @@ void main() {
     });
 
     test('Put overwrites existing node with same CID', () async {
-      final cid = CID('test-cid');
+      final cid = MerkleDagCID('test-cid');
       final node1 = MerkleNode<String>(
         cid: cid,
         payload: 'payload1',

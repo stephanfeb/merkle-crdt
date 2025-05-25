@@ -40,7 +40,7 @@ class GSet<T> implements CRDTPayload<GSet<T>> {
   bool get isNotEmpty => _elements.isNotEmpty;
 
   /// Returns an iterator over the elements of the set
-  Iterable<T> get elements => _elements;
+  Iterable<T> get elements => Set.unmodifiable(_elements);
 
   /// Converts the set to a list
   List<T> toList() => _elements.toList();

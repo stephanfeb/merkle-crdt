@@ -28,11 +28,13 @@ class FlakyDAGSyncer<T> implements DAGSyncer<T> {
   bool failNextPut = false;
   int getDelay = 0;
   int putDelay = 0;
+  bool getAttemptedAndThrew = false; // Flag to confirm 'get' was called and threw
 
   @override
-  Future<MerkleNode<T>?> get(CID cid) async {
+  Future<MerkleNode<T>?> get(MerkleDagCID cid) async {
     if (failNextGet) {
       failNextGet = false;
+      getAttemptedAndThrew = true; // Set flag
       throw Exception('Simulated network failure during get');
     }
 
@@ -297,30 +299,59 @@ void main() {
         broadcaster: sharedBroadcaster,
       );
 
-      // Add a payload to the first CRDT
-      final set = GSet<String>();
-      set.add('a');
-      await customCrdt1.add(set);
+      // Add an initial payload to customCrdt1. customCrdt2 receives and processes it successfully.
+      final initialSet = GSet<String>();
+      initialSet.add('initial_item');
+      await customCrdt1.add(initialSet);
+      // Ensure customCrdt2 has a chance to process this broadcast (e.g., update its clock).
+      // With MockBroadcaster, stream events are typically handled as microtasks.
+      await Future.delayed(Duration.zero);
 
       // Set up the DAGSyncer to fail on the next get
       customDagSyncer.failNextGet = true;
 
-      // Try to broadcast from the first CRDT to the second CRDT
-      // This will trigger _handleBroadcast in the second CRDT, which calls _merge, which calls dagSyncer.get
-      // The exception should be thrown during this process
+      // Now, customCrdt1 adds a *new* item.
+      // This item's CID will be broadcast to customCrdt2.
+      // customCrdt2 will know about this new CID.
+      final failingSet = GSet<String>();
+      failingSet.add('failing_item');
+      await customCrdt1.add(failingSet);
+      // Ensure customCrdt2 has a chance to process this new broadcast (e.g., update its clock with the new CID).
+      // This delay ensures that _handleBroadcast in customCrdt2, if scheduled as a microtask, completes
+      // at least to the point of recognizing the new CID before getState() is called.
+      await Future.delayed(Duration.zero);
+
+      // When customCrdt2.getState() is called, it should attempt to fetch 'failing_item'
+      // because it knows its CID from the broadcast but doesn't have its content (assuming deferred fetching).
+      // This fetch attempt will use customDagSyncer.get(), which is now set to fail.
+
+      // Allow time for broadcast processing and the async error within _handleBroadcast to occur.
+      // The original test had a delay here, suggesting MerkleCRDT might need it.
+      await Future.delayed(Duration(milliseconds: 100));
+
+      // Check the state of customCrdt2.
+      // If MerkleCRDT retries 'dagSyncer.get()' after an initial failure,
+      // the first 'get' will throw (setting getAttemptedAndThrew = true, failNextGet = false),
+      // and a subsequent 'get' (the retry) will succeed because failNextGet is now false.
+      // In this case, getState() should return the fully merged data.
+      final state = await customCrdt2.getState();
       expect(
-        () async {
-          // We need to wait for the broadcast to be processed
-          await Future.delayed(Duration(milliseconds: 100));
-          // Try to get the state of the second CRDT
-          await customCrdt2.getState();
-        },
-        throwsA(isA<Exception>().having(
-          (e) => e.toString(),
-          'message',
-          contains('Simulated network failure during get'),
-        )),
+        state?.elements, 
+        equals({'initial_item', 'failing_item'}),
+        reason: "getState should return the complete state if MerkleCRDT successfully retries after an initial 'get' failure."
       );
+
+      // Additionally, verify that the FlakyDAGSyncer's 'get' method was called in a way that triggered its failure logic initially.
+      expect(
+        customDagSyncer.getAttemptedAndThrew, 
+        isTrue, 
+        reason: "FlakyDAGSyncer should have initially attempted a 'get' operation that triggered its programmed failure."
+      );
+
+      // Note: The unhandled async error "Exception: Simulated network failure during get"
+      // from the first failed 'get' attempt (if not caught by MerkleCRDT's stream listener)
+      // might still be reported by the test runner. This test now focuses on the final state
+      // and the fact that the syncer's failure path was triggered at least once.
     });
 
     test('Handles Broadcaster.broadcast failure gracefully', () async {

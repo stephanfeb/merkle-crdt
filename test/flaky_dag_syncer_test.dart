@@ -9,7 +9,7 @@ class FlakyDAGSyncer<T> implements DAGSyncer<T> {
   bool failNextPut = false;
 
   @override
-  Future<MerkleNode<T>?> get(CID cid) async {
+  Future<MerkleNode<T>?> get(MerkleDagCID cid) async {
     if (failNextGet) {
       failNextGet = false;
       throw Exception('Simulated network failure during get');
@@ -40,7 +40,7 @@ void main() {
       dagSyncer.failNextGet = true;
       
       // Try to get a node (this should throw)
-      await expectLater(dagSyncer.get(CID('test')), throwsException);
+      await expectLater(dagSyncer.get(MerkleDagCID('test')), throwsException);
     });
 
     test('Put throws exception when failNextPut is true', () async {
@@ -49,7 +49,7 @@ void main() {
       
       // Try to put a node (this should throw)
       final node = MerkleNode<String>(
-        cid: CID('test'),
+        cid: MerkleDagCID('test'),
         payload: 'test',
         children: {},
       );

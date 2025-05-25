@@ -9,7 +9,7 @@ class FlakyDAGSyncer<T> implements DAGSyncer<T> {
   bool failNextPut = false;
 
   @override
-  Future<MerkleNode<T>?> get(CID cid) async {
+  Future<MerkleNode<T>?> get(MerkleDagCID cid) async {
     if (failNextGet) {
       failNextGet = false;
       throw Exception('Simulated network failure during get');
@@ -30,11 +30,11 @@ class FlakyDAGSyncer<T> implements DAGSyncer<T> {
 // A custom DAGSyncer that can be programmed to return specific values or throw exceptions
 class ProgrammableDAGSyncer<T> implements DAGSyncer<T> {
   final Map<String, MerkleNode<T>> _nodes = {};
-  final List<Future<MerkleNode<T>?> Function(CID)> _getResponses = [];
+  final List<Future<MerkleNode<T>?> Function(MerkleDagCID)> _getResponses = [];
   final List<Future<void> Function(MerkleNode<T>)> _putResponses = [];
 
   // Add a response for the next get call
-  void addGetResponse(Future<MerkleNode<T>?> Function(CID) response) {
+  void addGetResponse(Future<MerkleNode<T>?> Function(MerkleDagCID) response) {
     _getResponses.add(response);
   }
 
@@ -44,7 +44,7 @@ class ProgrammableDAGSyncer<T> implements DAGSyncer<T> {
   }
 
   @override
-  Future<MerkleNode<T>?> get(CID cid) async {
+  Future<MerkleNode<T>?> get(MerkleDagCID cid) async {
     if (_getResponses.isNotEmpty) {
       final response = _getResponses.removeAt(0);
       return response(cid);
@@ -101,7 +101,7 @@ void main() {
       final getCalls = <String>[];
 
       // Program the DAGSyncer to record the CID and return a node
-      dagSyncer.addGetResponse((CID cid) async {
+      dagSyncer.addGetResponse((MerkleDagCID cid) async {
         getCalls.add(cid.value);
         return MerkleNode<TestPayload>(
           cid: cid,

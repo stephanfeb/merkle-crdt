@@ -13,7 +13,7 @@ class MerkleCRDT<T extends CRDTPayload<T>> {
   final Broadcaster broadcaster;
 
   /// The current root CIDs of the Merkle-CRDT
-  Set<CID> _roots = {};
+  Set<MerkleDagCID> _roots = {};
 
   /// A cache of nodes by CID
   final Map<String, MerkleNode<T>> _nodeCache = {};
@@ -27,10 +27,10 @@ class MerkleCRDT<T extends CRDTPayload<T>> {
   }
 
   /// Returns the current root CIDs
-  Set<CID> get roots => Set.from(_roots);
+  Set<MerkleDagCID> get roots => Set.from(_roots);
 
   /// Adds a new payload to the Merkle-CRDT
-  Future<CID> add(T payload) async {
+  Future<MerkleDagCID> add(T payload) async {
     // If we have an existing state, merge the new payload with it
     if (_roots.isNotEmpty) {
       final currentState = await getState();
@@ -60,13 +60,13 @@ class MerkleCRDT<T extends CRDTPayload<T>> {
   /// Handles a broadcast from another replica
   Future<void> _handleBroadcast(dynamic data) async {
     if (data is String) {
-      final cid = CID(data);
+      final cid = MerkleDagCID(data);
       await _merge(cid);
     }
   }
 
   /// Merges a remote Merkle-CRDT with this one
-  Future<void> _merge(CID remoteCid) async {
+  Future<void> _merge(MerkleDagCID remoteCid) async {
     // Get the remote node
     final remoteNode = await dagSyncer.get(remoteCid);
     if (remoteNode == null) return;
@@ -89,7 +89,7 @@ class MerkleCRDT<T extends CRDTPayload<T>> {
   }
 
   /// Checks if a CID is included in our DAG
-  bool _isIncluded(CID cid) {
+  bool _isIncluded(MerkleDagCID cid) {
     // If the CID is one of our roots, it's included
     if (_roots.contains(cid)) return true;
 
@@ -102,7 +102,7 @@ class MerkleCRDT<T extends CRDTPayload<T>> {
   }
 
   /// Checks if our DAG is included in the remote DAG
-  Future<bool> _isIncludedIn(CID remoteCid) async {
+  Future<bool> _isIncludedIn(MerkleDagCID remoteCid) async {
     // Check if all our roots are descendants of the remote CID
     for (final root in _roots) {
       if (!await _isDescendantOf(root, remoteCid)) return false;
@@ -112,7 +112,7 @@ class MerkleCRDT<T extends CRDTPayload<T>> {
   }
 
   /// Checks if a CID is a descendant of another CID
-  bool _isDescendant(CID descendant, CID ancestor) {
+  bool _isDescendant(MerkleDagCID descendant, MerkleDagCID ancestor) {
     // If they're the same, it's not a descendant
     if (descendant == ancestor) return false;
 
@@ -132,7 +132,7 @@ class MerkleCRDT<T extends CRDTPayload<T>> {
   }
 
   /// Checks if a CID is a descendant of another CID, fetching nodes as needed
-  Future<bool> _isDescendantOf(CID descendant, CID ancestor) async {
+  Future<bool> _isDescendantOf(MerkleDagCID descendant, MerkleDagCID ancestor) async {
     // If they're the same, it's not a descendant
     if (descendant == ancestor) return false;
 

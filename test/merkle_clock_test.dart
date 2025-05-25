@@ -115,7 +115,7 @@ void main() {
       final cid1 = await clock.addNode('event1');
       
       // Create a CID that doesn't exist in the DAGSyncer
-      final nonExistentCid = CID('non-existent');
+      final nonExistentCid = MerkleDagCID('non-existent');
       
       // Merge with the non-existent CID
       await clock.merge(nonExistentCid);

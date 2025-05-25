@@ -4,9 +4,9 @@ import 'package:test/test.dart';
 void main() {
   group('CID Tests', () {
     test('CID equality', () {
-      final cid1 = CID('abc');
-      final cid2 = CID('abc');
-      final cid3 = CID('def');
+      final cid1 = MerkleDagCID('abc');
+      final cid2 = MerkleDagCID('abc');
+      final cid3 = MerkleDagCID('def');
 
       expect(cid1 == cid2, isTrue);
       expect(cid1 == cid3, isFalse);
@@ -15,9 +15,9 @@ void main() {
     });
 
     test('CID from content', () {
-      final cid1 = CID.fromContent('test content');
-      final cid2 = CID.fromContent('test content');
-      final cid3 = CID.fromContent('different content');
+      final cid1 = MerkleDagCID.fromContent('test content');
+      final cid2 = MerkleDagCID.fromContent('test content');
+      final cid3 = MerkleDagCID.fromContent('different content');
 
       expect(cid1 == cid2, isTrue);
       expect(cid1 == cid3, isFalse);
@@ -26,8 +26,8 @@ void main() {
 
   group('MerkleNode Tests', () {
     test('MerkleNode creation', () {
-      final child1 = CID('child1');
-      final child2 = CID('child2');
+      final child1 = MerkleDagCID('child1');
+      final child2 = MerkleDagCID('child2');
       final children = {child1, child2};
 
       final node = MerkleNode.create('test payload', children);
@@ -38,8 +38,8 @@ void main() {
     });
 
     test('MerkleNode equality based on content', () {
-      final children1 = {CID('child1'), CID('child2')};
-      final children2 = {CID('child1'), CID('child2')};
+      final children1 = {MerkleDagCID('child1'), MerkleDagCID('child2')};
+      final children2 = {MerkleDagCID('child1'), MerkleDagCID('child2')};
 
       final node1 = MerkleNode.create('test payload', children1);
       final node2 = MerkleNode.create('test payload', children2);
@@ -48,8 +48,8 @@ void main() {
     });
 
     test('MerkleNode different with different content', () {
-      final children1 = {CID('child1'), CID('child2')};
-      final children2 = {CID('child1'), CID('child3')};
+      final children1 = {MerkleDagCID('child1'), MerkleDagCID('child2')};
+      final children2 = {MerkleDagCID('child1'), MerkleDagCID('child3')};
 
       final node1 = MerkleNode.create('test payload', children1);
       final node2 = MerkleNode.create('test payload', children2);
