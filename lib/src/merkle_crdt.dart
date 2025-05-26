@@ -9,14 +9,17 @@ import 'crdt_payload.dart';
 import 'abstract_merkle_dag.dart'; // Import the base class
 
 /// Implementation of a Merkle-CRDT
-class MerkleCRDT<T extends CRDTPayload<T>> extends AbstractMerkleDAG<T> {
+/// V is the type of the logical value held by the CRDT (e.g., Set<String>)
+/// P is the type of the CRDT payload object itself (e.g., GSet<String>),
+/// which implements CRDTPayload<V>.
+class MerkleCRDT<V, P extends CRDTPayload<V>> extends AbstractMerkleDAG<P> {
   /// The Broadcaster component
   final Broadcaster broadcaster;
 
   // dagSyncer, _roots, _nodeCache, and roots getter are inherited from AbstractMerkleDAG
 
   MerkleCRDT({
-    required DAGSyncer<T> dagSyncer,
+    required DAGSyncer<P> dagSyncer,
     required this.broadcaster,
     int maxCacheSize = 1000, // Default matches base class
   }) : super(dagSyncer: dagSyncer, maxCacheSize: maxCacheSize) {
@@ -27,13 +30,15 @@ class MerkleCRDT<T extends CRDTPayload<T>> extends AbstractMerkleDAG<T> {
   // roots getter is inherited
 
   /// Adds a new payload to the Merkle-CRDT
-  Future<CID> add(T payload) async {
+  Future<CID> add(P payload) async {
     return lock.synchronized(() async {
       // If we have an existing state, merge the new payload with it
       if (super.instanceRoots.isNotEmpty) {
         final currentState = await getState(); // getState itself might need locking if it reads roots/cache that can change
         if (currentState != null) {
-          payload = currentState.merge(payload);
+          // The merge method on P (which extends CRDTPayload<V>) should return P.
+          // Casting because CRDTPayload.merge is typed to return CRDTPayload<V>.
+          payload = currentState.merge(payload) as P;
         }
       }
 
@@ -101,22 +106,24 @@ class MerkleCRDT<T extends CRDTPayload<T>> extends AbstractMerkleDAG<T> {
   /// If there are no roots, it returns `null`.
   /// If any root node cannot be fetched, it might return a partial state or `null`
   /// depending on the availability of other roots.
-  Future<T?> getState() async {
+  Future<P?> getState() async {
     if (super.instanceRoots.isEmpty) return null;
 
     // Start with the first root
     final firstRoot = super.instanceRoots.first;
-    MerkleNode<T>? firstNode = await getNode(firstRoot); 
+    MerkleNode<P>? firstNode = await getNode(firstRoot);
     if (firstNode == null) return null;
     
-    T state = firstNode.payload;
+    P state = firstNode.payload;
 
     // Merge with the other roots
     for (final root in super.instanceRoots.skip(1)) {
-      MerkleNode<T>? node = await getNode(root); 
-      if (node == null) continue; 
+      MerkleNode<P>? node = await getNode(root);
+      if (node == null) continue;
 
-      state = state.merge(node.payload);
+      // The merge method on P (which extends CRDTPayload<V>) should return P.
+      // Casting because CRDTPayload.merge is typed to return CRDTPayload<V>.
+      state = state.merge(node.payload) as P;
     }
 
     return state;

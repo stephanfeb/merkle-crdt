@@ -32,12 +32,11 @@ class MerkleNode<T> {
 
   /// Creates a MerkleNode with the given payload and children
   factory MerkleNode.create(T payload, Set<CID> children) { 
-    // Create a string representation of the node content
-    final contentString = _createContentString(payload, children);
-    final dataBytes = utf8.encode(contentString);
+    // Create a canonical byte representation of the node content
+    final contentBytes = _createContentBytes<T>(payload, children);
     
     // 1. Create the hash digest
-    final digestBytes = crypto.sha256.convert(dataBytes).bytes;
+    final digestBytes = crypto.sha256.convert(contentBytes).bytes; // contentBytes is already Uint8List
     
     // 2. Create the multihash: code + length + digest
     // <multihash-algorithm-code><digest-length><digest-value>
@@ -60,22 +59,33 @@ class MerkleNode<T> {
     );
   }
 
-  /// Creates a string representation of the node content for hashing
-  static String _createContentString(dynamic payload, Set<CID> children) { 
-    // Convert children CIDs to strings and sort them for canonical representation
-    final sortedChildrenStrings = children.map((c) => c.toString()).toList();
-    sortedChildrenStrings.sort();
-    final childrenStr = sortedChildrenStrings.join(',');
-    
-    // Use canonical string for payload if it's a CRDTPayload, otherwise fallback to toString().
-    final String payloadStr;
-    if (payload is CRDTPayload) { // Now CRDTPayload type should be recognized
-      payloadStr = payload.toCanonicalString();
+  /// Creates a canonical byte representation of the node content for hashing.
+  static Uint8List _createContentBytes<T>(T payload, Set<CID> children) {
+    final BytesBuilder builder = BytesBuilder(copy: false);
+
+    // 1. Add payload bytes
+    if (payload is CRDTPayload) {
+      builder.add(payload.toCanonicalBytes());
     } else {
-      payloadStr = payload.toString();
+      // Fallback for non-CRDTPayload types, using their string representation.
+      builder.add(utf8.encode(payload.toString()));
     }
-    
-    return '$payloadStr|$childrenStr';
+
+    // 2. Add sorted children CIDs bytes
+    // A separator between payload and children, and between children might be good for robustness.
+    // For now, simple concatenation. The structure of CIDs and typical payload representations
+    // might make this safe, but explicit separators are generally safer.
+    // Example: builder.addByte(0); // Null byte separator
+
+    if (children.isNotEmpty) {
+      final sortedChildrenStrings = children.map((c) => c.toString()).toList();
+      sortedChildrenStrings.sort();
+      for (final cidStr in sortedChildrenStrings) {
+        // Consider adding a prefix/delimiter for each child if ambiguity is a concern
+        builder.add(utf8.encode(cidStr));
+      }
+    }
+    return builder.toBytes();
   }
 
   @override

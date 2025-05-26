@@ -1,8 +1,9 @@
-import 'package:merkledag/merkledag.dart';
 import 'dart:convert';
+import 'dart:typed_data';
+import 'package:merkledag/src/crdt_payload.dart'; // Adjusted import
 
 /// A Grow-only Set CRDT implementation
-class GSet<T> implements CRDTPayload<GSet<T>> {
+class GSet<T> implements CRDTPayload<Set<T>> {
   /// The internal set of elements
   final Set<T> _elements = {};
 
@@ -19,6 +20,9 @@ class GSet<T> implements CRDTPayload<GSet<T>> {
     final List<dynamic> list = jsonDecode(json);
     return GSet<T>.fromList(list.cast<T>());
   }
+
+  @override
+  Set<T> get value => Set.unmodifiable(_elements);
 
   /// Adds an element to the set
   void add(T element) {
@@ -49,22 +53,44 @@ class GSet<T> implements CRDTPayload<GSet<T>> {
   String toJson() => jsonEncode(_elements.toList());
 
   @override
-  GSet<T> merge(GSet<T> other) {
-    final result = GSet<T>();
-    result._elements.addAll(_elements);
-    result._elements.addAll(other._elements);
-    return result;
+  GSet<T> merge(CRDTPayload<Set<T>> other) {
+    if (other is! GSet<T>) {
+      throw ArgumentError(
+          'Can only merge GSet with another GSet. Got ${other.runtimeType}');
+    }
+    final newSet = GSet<T>();
+    newSet._elements.addAll(this.value);
+    newSet._elements.addAll(other.value);
+    return newSet;
   }
 
   @override
   String toString() => _elements.toString(); // For debugging
 
   @override
-  String toCanonicalString() {
-    final sortedElementStrings = _elements.map((e) => e.toString()).toList();
-    sortedElementStrings.sort();
-    // Using a format similar to Set.toString() but with guaranteed order.
-    return '{${sortedElementStrings.join(', ')}}';
+  Uint8List toCanonicalBytes() {
+    final List<Uint8List> elementBytesList = _elements
+        .map((e) => utf8.encode(e.toString())) // Assuming T.toString() is canonical enough
+        .toList();
+
+    // Sort the Uint8List representations lexicographically
+    elementBytesList.sort((a, b) {
+      final lenA = a.length;
+      final lenB = b.length;
+      final minLen = lenA < lenB ? lenA : lenB;
+      for (int i = 0; i < minLen; i++) {
+        if (a[i] != b[i]) {
+          return a[i].compareTo(b[i]);
+        }
+      }
+      return lenA.compareTo(lenB);
+    });
+
+    final builder = BytesBuilder(copy: false);
+    for (final bytes in elementBytesList) {
+      builder.add(bytes);
+    }
+    return builder.toBytes();
   }
 
   @override

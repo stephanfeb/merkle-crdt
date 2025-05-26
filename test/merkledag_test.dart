@@ -94,14 +94,15 @@ void main() {
   });
 
   group('MerkleCRDT with Mock Components', () {
-    late MockDAGSyncer<GSet<String>> dagSyncer;
+    // P is GSet<String>, V is Set<String>
+    late MockDAGSyncer<GSet<String>> dagSyncer; // P is GSet<String>
     late MockBroadcaster broadcaster;
-    late MerkleCRDT<GSet<String>> crdt;
+    late MerkleCRDT<Set<String>, GSet<String>> crdt; // V is Set<String>, P is GSet<String>
 
     setUp(() {
       dagSyncer = MockDAGSyncer<GSet<String>>();
       broadcaster = MockBroadcaster();
-      crdt = MerkleCRDT<GSet<String>>(
+      crdt = MerkleCRDT<Set<String>, GSet<String>>( // Updated type arguments
         dagSyncer: dagSyncer,
         broadcaster: broadcaster,
       );
@@ -126,10 +127,10 @@ void main() {
       // Create first CRDT and add a payload
       final set1 = GSet<String>();
       set1.add('apple');
-      final cid1 = await crdt.add(set1);
+      /*final cid1 = */ await crdt.add(set1); // cid1 not used
 
       // Create second CRDT with the same components
-      final crdt2 = MerkleCRDT<GSet<String>>(
+      final crdt2 = MerkleCRDT<Set<String>, GSet<String>>( // Updated type arguments
         dagSyncer: dagSyncer,
         broadcaster: broadcaster,
       );
