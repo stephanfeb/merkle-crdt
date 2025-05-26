@@ -1,3 +1,4 @@
+import 'package:dart_cid/dart_cid.dart';
 import 'package:merkledag/merkledag.dart';
 import 'package:test/test.dart';
 import 'dart:async';
@@ -9,12 +10,12 @@ class FlakyDAGSyncer<T> implements DAGSyncer<T> {
   bool failNextPut = false;
 
   @override
-  Future<MerkleNode<T>?> get(MerkleDagCID cid) async {
+  Future<MerkleNode<T>?> get(CID cid) async {
     if (failNextGet) {
       failNextGet = false;
       throw Exception('Simulated network failure during get');
     }
-    return _nodes[cid.value];
+    return _nodes[cid.toString()];
   }
 
   @override
@@ -23,18 +24,18 @@ class FlakyDAGSyncer<T> implements DAGSyncer<T> {
       failNextPut = false;
       throw Exception('Simulated network failure during put');
     }
-    _nodes[node.cid.value] = node;
+    _nodes[node.cid.toString()] = node;
   }
 }
 
 // A custom DAGSyncer that can be programmed to return specific values or throw exceptions
 class ProgrammableDAGSyncer<T> implements DAGSyncer<T> {
   final Map<String, MerkleNode<T>> _nodes = {};
-  final List<Future<MerkleNode<T>?> Function(MerkleDagCID)> _getResponses = [];
+  final List<Future<MerkleNode<T>?> Function(CID)> _getResponses = [];
   final List<Future<void> Function(MerkleNode<T>)> _putResponses = [];
 
   // Add a response for the next get call
-  void addGetResponse(Future<MerkleNode<T>?> Function(MerkleDagCID) response) {
+  void addGetResponse(Future<MerkleNode<T>?> Function(CID) response) {
     _getResponses.add(response);
   }
 
@@ -44,12 +45,12 @@ class ProgrammableDAGSyncer<T> implements DAGSyncer<T> {
   }
 
   @override
-  Future<MerkleNode<T>?> get(MerkleDagCID cid) async {
+  Future<MerkleNode<T>?> get(CID cid) async {
     if (_getResponses.isNotEmpty) {
       final response = _getResponses.removeAt(0);
       return response(cid);
     }
-    return _nodes[cid.value];
+    return _nodes[cid.toString()];
   }
 
   @override
@@ -58,7 +59,7 @@ class ProgrammableDAGSyncer<T> implements DAGSyncer<T> {
       final response = _putResponses.removeAt(0);
       return response(node);
     }
-    _nodes[node.cid.value] = node;
+    _nodes[node.cid.toString()] = node;
   }
 }
 
@@ -101,8 +102,8 @@ void main() {
       final getCalls = <String>[];
 
       // Program the DAGSyncer to record the CID and return a node
-      dagSyncer.addGetResponse((MerkleDagCID cid) async {
-        getCalls.add(cid.value);
+      dagSyncer.addGetResponse((CID cid) async {
+        getCalls.add(cid.toString());
         return MerkleNode<TestPayload>(
           cid: cid,
           payload: TestPayload('test-response'),
@@ -125,13 +126,13 @@ void main() {
 
       // Now broadcast the CID of the test CRDT's node to the original CRDT
       // This will cause the original CRDT to call _merge, which will call DAGSyncer.get
-      await broadcaster.broadcast(cid2.value);
+      await broadcaster.broadcast(cid2.toString());
 
       // Wait for the broadcast to be processed
       await Future.delayed(Duration(milliseconds: 100));
 
       // Verify that DAGSyncer.get was called with the correct CID
-      expect(getCalls, contains(cid2.value));
+      expect(getCalls, contains(cid2.toString()));
     });
 
     test('add throws exception when DAGSyncer.put fails', () async {

@@ -1,4 +1,4 @@
-import '../cid.dart';
+import 'package:dart_cid/dart_cid.dart';
 import '../merkle_node.dart';
 import '../dag_syncer.dart';
 
@@ -7,12 +7,12 @@ class MockDAGSyncer<T> implements DAGSyncer<T> {
   final Map<String, MerkleNode<T>> _nodes = {};
 
   @override
-  Future<MerkleNode<T>?> get(MerkleDagCID cid) async {
-    return _nodes[cid.value];
+  Future<MerkleNode<T>?> get(CID cid) async {
+    return _nodes[cid.toString()];
   }
 
   @override
   Future<void> put(MerkleNode<T> node) async {
-    _nodes[node.cid.value] = node;
+    _nodes[node.cid.toString()] = node;
   }
 }

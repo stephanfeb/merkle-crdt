@@ -1,12 +1,16 @@
+import 'package:dart_cid/dart_cid.dart';
 import 'package:merkledag/merkledag.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('CID Tests', () {
+    // Helper to create a CID from a string content for testing
+    CID cidFromContent(String content) => MerkleNode.create(content, <CID>{}).cid;
+
     test('CID equality', () {
-      final cid1 = MerkleDagCID('abc');
-      final cid2 = MerkleDagCID('abc');
-      final cid3 = MerkleDagCID('def');
+      final cid1 = cidFromContent('abc');
+      final cid2 = cidFromContent('abc');
+      final cid3 = cidFromContent('def');
 
       expect(cid1 == cid2, isTrue);
       expect(cid1 == cid3, isFalse);
@@ -15,9 +19,9 @@ void main() {
     });
 
     test('CID from content', () {
-      final cid1 = MerkleDagCID.fromContent('test content');
-      final cid2 = MerkleDagCID.fromContent('test content');
-      final cid3 = MerkleDagCID.fromContent('different content');
+      final cid1 = cidFromContent('test content');
+      final cid2 = cidFromContent('test content');
+      final cid3 = cidFromContent('different content');
 
       expect(cid1 == cid2, isTrue);
       expect(cid1 == cid3, isFalse);
@@ -25,9 +29,12 @@ void main() {
   });
 
   group('MerkleNode Tests', () {
+    // Helper to create a CID from a string content for testing (can reuse the one above or redefine for clarity)
+    CID cidForNodeTest(String content) => MerkleNode.create(content, <CID>{}).cid;
+
     test('MerkleNode creation', () {
-      final child1 = MerkleDagCID('child1');
-      final child2 = MerkleDagCID('child2');
+      final child1 = cidForNodeTest('child1');
+      final child2 = cidForNodeTest('child2');
       final children = {child1, child2};
 
       final node = MerkleNode.create('test payload', children);
@@ -38,8 +45,8 @@ void main() {
     });
 
     test('MerkleNode equality based on content', () {
-      final children1 = {MerkleDagCID('child1'), MerkleDagCID('child2')};
-      final children2 = {MerkleDagCID('child1'), MerkleDagCID('child2')};
+      final children1 = {cidForNodeTest('child1'), cidForNodeTest('child2')};
+      final children2 = {cidForNodeTest('child1'), cidForNodeTest('child2')};
 
       final node1 = MerkleNode.create('test payload', children1);
       final node2 = MerkleNode.create('test payload', children2);
@@ -48,8 +55,8 @@ void main() {
     });
 
     test('MerkleNode different with different content', () {
-      final children1 = {MerkleDagCID('child1'), MerkleDagCID('child2')};
-      final children2 = {MerkleDagCID('child1'), MerkleDagCID('child3')};
+      final children1 = {cidForNodeTest('child1'), cidForNodeTest('child2')};
+      final children2 = {cidForNodeTest('child1'), cidForNodeTest('child3')};
 
       final node1 = MerkleNode.create('test payload', children1);
       final node2 = MerkleNode.create('test payload', children2);
@@ -133,7 +140,7 @@ void main() {
       final cid2 = await crdt2.add(set2);
 
       // Simulate broadcasting from crdt2 to crdt1
-      await broadcaster.broadcast(cid2.value);
+      await broadcaster.broadcast(cid2.toString());
 
       // Wait for the broadcast to be processed
       await Future.delayed(Duration(milliseconds: 100));

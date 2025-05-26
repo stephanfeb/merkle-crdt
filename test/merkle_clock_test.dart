@@ -1,7 +1,11 @@
+import 'package:dart_cid/dart_cid.dart';
 import 'package:merkledag/merkledag.dart';
 import 'package:test/test.dart';
 
 void main() {
+  // Helper to create a CID from a string content for testing
+  CID cidFromContent(String content) => MerkleNode.create(content, <CID>{}).cid;
+
   group('MerkleClock Tests', () {
     late MockDAGSyncer<String> dagSyncer;
     late MerkleClock<String> clock;
@@ -115,7 +119,7 @@ void main() {
       final cid1 = await clock.addNode('event1');
       
       // Create a CID that doesn't exist in the DAGSyncer
-      final nonExistentCid = MerkleDagCID('non-existent');
+      final nonExistentCid = cidFromContent('non-existent-content-for-cid'); // Use helper
       
       // Merge with the non-existent CID
       await clock.merge(nonExistentCid);

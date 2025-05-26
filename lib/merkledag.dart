@@ -5,7 +5,6 @@
 library merkledag;
 
 // Core components
-export 'src/cid.dart';
 export 'src/merkle_node.dart';
 export 'src/dag_syncer.dart';
 export 'src/broadcaster.dart';

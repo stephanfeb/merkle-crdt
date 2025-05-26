@@ -1,8 +1,12 @@
+import 'package:dart_cid/dart_cid.dart';
 import 'package:merkledag/merkledag.dart';
 import 'package:test/test.dart';
 import 'dart:async';
 
 void main() {
+  // Helper to create a CID from a string content for testing
+  CID cidFromContent(String content) => MerkleNode.create(content, <CID>{}).cid;
+
   group('MockDAGSyncer Tests', () {
     late MockDAGSyncer<String> dagSyncer;
 
@@ -11,15 +15,15 @@ void main() {
     });
 
     test('Get returns null for non-existent CID', () async {
-      final cid = MerkleDagCID('non-existent');
+      final cid = cidFromContent('non-existent'); // Generate a valid CID
       final node = await dagSyncer.get(cid);
       expect(node, isNull);
     });
 
     test('Put stores node and get retrieves it', () async {
-      final cid = MerkleDagCID('test-cid');
-      final node = MerkleNode<String>(
-        cid: cid,
+      final cid = cidFromContent('test-cid-content'); // CID from content
+      final node = MerkleNode<String>( // Construct node with this CID
+        cid: cid, 
         payload: 'test-payload',
         children: {},
       );
@@ -28,20 +32,20 @@ void main() {
       final retrievedNode = await dagSyncer.get(cid);
 
       expect(retrievedNode, isNotNull);
-      expect(retrievedNode!.cid, equals(cid));
+      expect(retrievedNode!.cid, equals(cid)); // Compare the CID objects
       expect(retrievedNode.payload, equals('test-payload'));
       expect(retrievedNode.children, isEmpty);
     });
 
     test('Put overwrites existing node with same CID', () async {
-      final cid = MerkleDagCID('test-cid');
+      final cid = cidFromContent('test-cid-content'); // Use the same content to get the same CID
       final node1 = MerkleNode<String>(
         cid: cid,
         payload: 'payload1',
         children: {},
       );
       final node2 = MerkleNode<String>(
-        cid: cid,
+        cid: cid, // Same CID
         payload: 'payload2',
         children: {},
       );

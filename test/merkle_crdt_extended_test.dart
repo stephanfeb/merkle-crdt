@@ -1,3 +1,4 @@
+import 'package:dart_cid/dart_cid.dart';
 import 'package:merkledag/merkledag.dart';
 import 'package:test/test.dart';
 import 'dart:async';
@@ -31,7 +32,7 @@ class FlakyDAGSyncer<T> implements DAGSyncer<T> {
   bool getAttemptedAndThrew = false; // Flag to confirm 'get' was called and threw
 
   @override
-  Future<MerkleNode<T>?> get(MerkleDagCID cid) async {
+  Future<MerkleNode<T>?> get(CID cid) async {
     if (failNextGet) {
       failNextGet = false;
       getAttemptedAndThrew = true; // Set flag
@@ -42,7 +43,7 @@ class FlakyDAGSyncer<T> implements DAGSyncer<T> {
       await Future.delayed(Duration(milliseconds: getDelay));
     }
 
-    return _nodes[cid.value];
+    return _nodes[cid.toString()];
   }
 
   @override
@@ -56,7 +57,7 @@ class FlakyDAGSyncer<T> implements DAGSyncer<T> {
       await Future.delayed(Duration(milliseconds: putDelay));
     }
 
-    _nodes[node.cid.value] = node;
+    _nodes[node.cid.toString()] = node;
   }
 }
 

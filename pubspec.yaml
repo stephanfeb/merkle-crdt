@@ -9,6 +9,8 @@ environment:
 # Add regular dependencies here.
 dependencies:
   crypto: ^3.0.3
+  dart_cid:
+    path: /Users/stephanfeb/IdeaProjects/bsv_apps/dart-cid
 
 dev_dependencies:
   lints: ^5.0.0

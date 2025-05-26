@@ -1,32 +1,38 @@
+import 'package:dart_cid/dart_cid.dart';
 import 'package:merkledag/merkledag.dart';
 import 'package:test/test.dart';
 
 void main() {
+  // Helper to create a CID from a string content for testing
+  CID cidFromContent(String content) => MerkleNode.create(content, <CID>{}).cid;
+
   group('CID Extended Tests', () {
-    test('CID with empty string', () {
-      final cid = MerkleDagCID('');
-      expect(cid.value, equals(''));
-      expect(cid.toString(), equals('CID()'));
+    test('CID from empty string content', () {
+      // CID.fromString('') would throw. Test CID generation from empty content.
+      final cid = cidFromContent('');
+      expect(cid, isA<CID>());
+      expect(cid.toString(), isNotEmpty); 
     });
 
-    test('CID.fromContent with empty string', () {
-      final cid = MerkleDagCID.fromContent('');
-      expect(cid.value, isNotEmpty); // Should still generate a hash
+    // This test is essentially the same as above with the helper
+    test('CID.fromContent with empty string (using helper)', () {
+      final cid = cidFromContent('');
+      expect(cid.toString(), isNotEmpty); // Should still generate a hash
     });
 
     test('CID.fromContent with special characters', () {
-      final cid1 = MerkleDagCID.fromContent('test\nwith\nnewlines');
-      final cid2 = MerkleDagCID.fromContent('test\nwith\nnewlines');
-      final cid3 = MerkleDagCID.fromContent('test with spaces');
+      final cid1 = cidFromContent('test\nwith\nnewlines');
+      final cid2 = cidFromContent('test\nwith\nnewlines');
+      final cid3 = cidFromContent('test with spaces');
       
       expect(cid1, equals(cid2));
       expect(cid1, isNot(equals(cid3)));
     });
 
     test('CID.fromContent with Unicode characters', () {
-      final cid1 = MerkleDagCID.fromContent('Unicode: 😀🌍🚀');
-      final cid2 = MerkleDagCID.fromContent('Unicode: 😀🌍🚀');
-      final cid3 = MerkleDagCID.fromContent('Different: 🎉🎊');
+      final cid1 = cidFromContent('Unicode: 😀🌍🚀');
+      final cid2 = cidFromContent('Unicode: 😀🌍🚀');
+      final cid3 = cidFromContent('Different: 🎉🎊');
       
       expect(cid1, equals(cid2));
       expect(cid1, isNot(equals(cid3)));
@@ -51,9 +57,9 @@ void main() {
 
     test('MerkleNode with large number of children', () {
       // Create 100 children
-      final children = <MerkleDagCID>{};
+      final children = <CID>{};
       for (var i = 0; i < 100; i++) {
-        children.add(MerkleDagCID('child$i'));
+        children.add(cidFromContent('child$i'));
       }
       
       final node = MerkleNode.create('parent', children);
@@ -73,8 +79,8 @@ void main() {
     });
 
     test('Two MerkleNodes with same payload but different children have different CIDs', () {
-      final children1 = {MerkleDagCID('child1')};
-      final children2 = {MerkleDagCID('child2')};
+      final children1 = {cidFromContent('child1')};
+      final children2 = {cidFromContent('child2')};
       
       final node1 = MerkleNode.create('same payload', children1);
       final node2 = MerkleNode.create('same payload', children2);
@@ -83,13 +89,15 @@ void main() {
     });
 
     test('MerkleNode.toString() contains payload and children info', () {
-      final children = {MerkleDagCID('child1'), MerkleDagCID('child2')};
+      final childCid1 = cidFromContent('child1');
+      final childCid2 = cidFromContent('child2');
+      final children = {childCid1, childCid2};
       final node = MerkleNode.create('test', children);
       
       final nodeString = node.toString();
       expect(nodeString, contains('test'));
-      expect(nodeString, contains('child1'));
-      expect(nodeString, contains('child2'));
+      expect(nodeString, contains(childCid1.toString()));
+      expect(nodeString, contains(childCid2.toString()));
     });
   });
 

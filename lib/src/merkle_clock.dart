@@ -1,4 +1,5 @@
-import 'cid.dart';
+import 'package:dart_cid/dart_cid.dart';
+
 import 'merkle_node.dart';
 import 'dag_syncer.dart';
 
@@ -8,7 +9,7 @@ class MerkleClock<T> {
   final DAGSyncer<T> dagSyncer;
   
   /// The current root CIDs of the Merkle-Clock
-  Set<MerkleDagCID> _roots = {};
+  Set<CID> _roots = {};
   
   /// A cache of nodes by CID
   final Map<String, MerkleNode<T>> _nodeCache = {};
@@ -18,15 +19,15 @@ class MerkleClock<T> {
   });
 
   /// Returns the current root CIDs
-  Set<MerkleDagCID> get roots => Set.from(_roots);
+  Set<CID> get roots => Set.from(_roots);
 
   /// Adds a new node to the Merkle-Clock
-  Future<MerkleDagCID> addNode(T payload) async {
+  Future<CID> addNode(T payload) async {
     // Create a new node with the payload and current roots as children
     final node = MerkleNode.create(payload, _roots);
     
     // Add the node to the cache
-    _nodeCache[node.cid.value] = node;
+    _nodeCache[node.cid.toString()] = node;
     
     // Make the node available to other replicas
     await dagSyncer.put(node);
@@ -38,13 +39,13 @@ class MerkleClock<T> {
   }
 
   /// Merges another Merkle-Clock with this one
-  Future<void> merge(MerkleDagCID remoteCid) async {
+  Future<void> merge(CID remoteCid) async {
     // Get the remote node
     final remoteNode = await dagSyncer.get(remoteCid);
     if (remoteNode == null) return;
     
     // Add the remote node to the cache
-    _nodeCache[remoteNode.cid.value] = remoteNode;
+    _nodeCache[remoteNode.cid.toString()] = remoteNode;
     
     // Check if the remote node is already included in our DAG
     if (_isIncluded(remoteNode.cid)) return;
@@ -61,7 +62,7 @@ class MerkleClock<T> {
   }
 
   /// Checks if a CID is included in our DAG
-  bool _isIncluded(MerkleDagCID cid) {
+  bool _isIncluded(CID cid) {
     // If the CID is one of our roots, it's included
     if (_roots.contains(cid)) return true;
     
@@ -74,7 +75,7 @@ class MerkleClock<T> {
   }
 
   /// Checks if our DAG is included in the remote DAG
-  Future<bool> _isIncludedIn(MerkleDagCID remoteCid) async {
+  Future<bool> _isIncludedIn(CID remoteCid) async {
     // Check if all our roots are descendants of the remote CID
     for (final root in _roots) {
       if (!await _isDescendantOf(root, remoteCid)) return false;
@@ -84,12 +85,12 @@ class MerkleClock<T> {
   }
 
   /// Checks if a CID is a descendant of another CID
-  bool _isDescendant(MerkleDagCID descendant, MerkleDagCID ancestor) {
+  bool _isDescendant(CID descendant, CID ancestor) {
     // If they're the same, it's not a descendant
     if (descendant == ancestor) return false;
     
     // Get the ancestor node from the cache
-    final ancestorNode = _nodeCache[ancestor.value];
+    final ancestorNode = _nodeCache[ancestor.toString()];
     if (ancestorNode == null) return false;
     
     // Check if the descendant is a direct child of the ancestor
@@ -104,16 +105,16 @@ class MerkleClock<T> {
   }
 
   /// Checks if a CID is a descendant of another CID, fetching nodes as needed
-  Future<bool> _isDescendantOf(MerkleDagCID descendant, MerkleDagCID ancestor) async {
+  Future<bool> _isDescendantOf(CID descendant, CID ancestor) async {
     // If they're the same, it's not a descendant
     if (descendant == ancestor) return false;
     
     // Get the ancestor node, fetching it if needed
-    MerkleNode<T>? ancestorNode = _nodeCache[ancestor.value];
+    MerkleNode<T>? ancestorNode = _nodeCache[ancestor.toString()];
     if (ancestorNode == null) {
       ancestorNode = await dagSyncer.get(ancestor);
       if (ancestorNode == null) return false;
-      _nodeCache[ancestor.value] = ancestorNode;
+      _nodeCache[ancestor.toString()] = ancestorNode;
     }
     
     // Check if the descendant is a direct child of the ancestor
