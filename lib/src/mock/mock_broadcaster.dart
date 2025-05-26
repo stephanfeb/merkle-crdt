@@ -3,18 +3,18 @@ import '../broadcaster.dart';
 
 /// A mock implementation of the Broadcaster interface
 class MockBroadcaster implements Broadcaster {
-  final List<StreamController<dynamic>> _controllers = [];
+  final List<StreamController<String>> _controllers = [];
 
   @override
-  Future<void> broadcast(data) async {
+  Future<void> broadcast(String cidString) async {
     for (final controller in _controllers) {
-      controller.add(data);
+      controller.add(cidString);
     }
   }
 
   @override
-  Stream<dynamic> subscribe() {
-    final controller = StreamController<dynamic>.broadcast();
+  Stream<String> subscribe() {
+    final controller = StreamController<String>.broadcast();
     _controllers.add(controller);
     return controller.stream;
   }

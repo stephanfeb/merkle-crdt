@@ -110,5 +110,10 @@ class Counter implements CRDTPayload<Counter> {
   }
 
   @override
-  String toString() => value.toString();
+  String toString() => value.toString(); // For debugging
+
+  @override
+  String toCanonicalString() {
+    return value.toString(); // Integer's toString is canonical for itself
+  }
 }

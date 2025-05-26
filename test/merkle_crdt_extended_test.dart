@@ -19,7 +19,12 @@ class Counter implements CRDTPayload<Counter> {
   }
 
   @override
-  String toString() => value.toString();
+  String toString() => value.toString(); // For debugging
+
+  @override
+  String toCanonicalString() {
+    return value.toString(); // Integer's toString is canonical for itself
+  }
 }
 
 // A custom DAGSyncer that can simulate network failures
@@ -63,12 +68,12 @@ class FlakyDAGSyncer<T> implements DAGSyncer<T> {
 
 // A custom Broadcaster that can simulate network failures
 class FlakyBroadcaster implements Broadcaster {
-  final List<StreamController<dynamic>> _controllers = [];
+  final List<StreamController<String>> _controllers = []; // Changed to String
   bool failNextBroadcast = false;
   int broadcastDelay = 0;
 
   @override
-  Future<void> broadcast(data) async {
+  Future<void> broadcast(String cidString) async { // Changed data to String cidString
     if (failNextBroadcast) {
       failNextBroadcast = false;
       throw Exception('Simulated network failure during broadcast');
@@ -79,13 +84,13 @@ class FlakyBroadcaster implements Broadcaster {
     }
 
     for (final controller in _controllers) {
-      controller.add(data);
+      controller.add(cidString); // Pass cidString
     }
   }
 
   @override
-  Stream<dynamic> subscribe() {
-    final controller = StreamController<dynamic>.broadcast();
+  Stream<String> subscribe() { // Changed to Stream<String>
+    final controller = StreamController<String>.broadcast(); // Changed to String
     _controllers.add(controller);
     return controller.stream;
   }

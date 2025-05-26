@@ -75,7 +75,12 @@ class TestPayload implements CRDTPayload<TestPayload> {
   }
 
   @override
-  String toString() => value;
+  String toString() => value; // For debugging
+
+  @override
+  String toCanonicalString() {
+    return value; // String value is already canonical for itself
+  }
 }
 
 void main() {

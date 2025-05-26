@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:dart_cid/dart_cid.dart';
+import 'crdt_payload.dart'; // Corrected import path for CRDTPayload type
+
 // Assuming dart_cid uses standard multihash format and provides codec constants.
 
 // Standard IPLD codecs (from https://github.com/multiformats/multicodec/blob/master/table.csv)
@@ -60,8 +62,20 @@ class MerkleNode<T> {
 
   /// Creates a string representation of the node content for hashing
   static String _createContentString(dynamic payload, Set<CID> children) { 
-    final childrenStr = children.map((c) => c.toString()).join(',');
-    return '$payload|$childrenStr';
+    // Convert children CIDs to strings and sort them for canonical representation
+    final sortedChildrenStrings = children.map((c) => c.toString()).toList();
+    sortedChildrenStrings.sort();
+    final childrenStr = sortedChildrenStrings.join(',');
+    
+    // Use canonical string for payload if it's a CRDTPayload, otherwise fallback to toString().
+    final String payloadStr;
+    if (payload is CRDTPayload) { // Now CRDTPayload type should be recognized
+      payloadStr = payload.toCanonicalString();
+    } else {
+      payloadStr = payload.toString();
+    }
+    
+    return '$payloadStr|$childrenStr';
   }
 
   @override

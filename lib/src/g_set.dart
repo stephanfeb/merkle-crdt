@@ -57,7 +57,15 @@ class GSet<T> implements CRDTPayload<GSet<T>> {
   }
 
   @override
-  String toString() => _elements.toString();
+  String toString() => _elements.toString(); // For debugging
+
+  @override
+  String toCanonicalString() {
+    final sortedElementStrings = _elements.map((e) => e.toString()).toList();
+    sortedElementStrings.sort();
+    // Using a format similar to Set.toString() but with guaranteed order.
+    return '{${sortedElementStrings.join(', ')}}';
+  }
 
   @override
   bool operator ==(Object other) {
