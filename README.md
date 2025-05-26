@@ -24,7 +24,7 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  merkledag: ^1.0.0
+  merkledag: ^1.0.0 # Ensure this version is current with your library version
 ```
 
 Then run:
@@ -42,11 +42,13 @@ import 'package:merkledag/merkledag.dart';
 
 void main() async {
   // Create mock components for testing
+  // P (payload type) is GSet<String>
   final dagSyncer = MockDAGSyncer<GSet<String>>();
   final broadcaster = MockBroadcaster();
 
   // Create a Merkle-CRDT
-  final crdt = MerkleCRDT<GSet<String>>(
+  // V (value type) is Set<String>, P (payload type) is GSet<String>
+  final crdt = MerkleCRDT<Set<String>, GSet<String>>(
     dagSyncer: dagSyncer,
     broadcaster: broadcaster,
   );
@@ -65,32 +67,61 @@ void main() async {
 
   // Get the current state
   final state = await crdt.getState();
-  print('Current state: $state');
+  print('Current state: ${state?.elements}'); // Access .elements for GSet
   // Output: Current state: {apple, banana, cherry, date}
 }
 ```
 
 ### Creating Custom CRDT Payloads
 
-You can create your own CRDT payloads by implementing the `CRDTPayload` interface:
+You can create your own CRDT payloads by implementing the `CRDTPayload<V>` interface, where `V` is the logical value type.
 
 ```dart
-class Counter implements CRDTPayload<Counter> {
-  final int value;
+import 'dart:convert'; // For utf8
+import 'dart:typed_data'; // For Uint8List
+import 'package:merkledag/merkledag.dart'; // For CRDTPayload
 
-  Counter(this.value);
+// Counter implements CRDTPayload<int>, where int is the logical value type V.
+class Counter implements CRDTPayload<int> {
+  final int _value; // Store the actual integer value
 
-  void increment() {
-    return Counter(value + 1);
+  Counter(this._value);
+
+  // Getter for the logical value, required by CRDTPayload<int>
+  @override
+  int get value => _value;
+
+  // Example method specific to Counter
+  Counter increment() {
+    return Counter(_value + 1);
   }
 
+  // Merge with another CRDTPayload<int>.
+  // It's common for the 'other' payload to be of the same concrete type (Counter).
   @override
-  Counter merge(Counter other) {
+  Counter merge(CRDTPayload<int> other) {
+    // other.value gives the int value from the other payload.
     return Counter(value > other.value ? value : other.value);
   }
 
+  // Required by CRDTPayload for canonical serialization
   @override
-  String toString() => value.toString();
+  Uint8List toCanonicalBytes() {
+    // For a simple integer, its string representation encoded to UTF-8 can be canonical.
+    return utf8.encode(_value.toString());
+  }
+
+  @override
+  String toString() => _value.toString(); // For debugging
+
+  // It's good practice to implement == and hashCode as well.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Counter && runtimeType == other.runtimeType && _value == other._value;
+
+  @override
+  int get hashCode => _value.hashCode;
 }
 ```
 
@@ -99,27 +130,50 @@ class Counter implements CRDTPayload<Counter> {
 In a real application, you would implement the `DAGSyncer` and `Broadcaster` interfaces with actual networking code:
 
 ```dart
-class NetworkDAGSyncer<T> implements DAGSyncer<T> {
+import 'package:merkledag/merkledag.dart'; // For CID, MerkleNode, DAGSyncer, Broadcaster
+
+class NetworkDAGSyncer<P> implements DAGSyncer<P> { // P is the payload type
   @override
-  Future<MerkleNode<T>?> get(CID cid) async {
+  Future<MerkleNode<P>?> get(CID cid) async {
     // Fetch the node from a network source
+    // Example:
+    // final response = await http.get(Uri.parse('https://my-network-source/nodes/${cid.toString()}'));
+    // if (response.statusCode == 200) {
+    //   // Deserialize response.body into a MerkleNode<P>
+    //   // This requires a way to know the type P and how to deserialize its payload.
+    //   // For simplicity, returning null.
+    //   return null; 
+    // }
+    // return null;
+    throw UnimplementedError('Get method not implemented in example');
   }
 
   @override
-  Future<void> put(MerkleNode<T> node) async {
+  Future<void> put(MerkleNode<P> node) async {
     // Make the node available on the network
+    // Example:
+    // final serializedNode = ... // Serialize node to bytes or JSON
+    // await http.post(Uri.parse('https://my-network-source/nodes'), body: serializedNode);
+    throw UnimplementedError('Put method not implemented in example');
   }
 }
 
 class NetworkBroadcaster implements Broadcaster {
   @override
-  Future<void> broadcast(dynamic data) async {
-    // Broadcast the data to other replicas
+  Future<void> broadcast(String cidString) async {
+    // Broadcast the CID string to other replicas
+    // Example:
+    // await myWebSocketClient.send(cidString);
+    // await myMessageQueueClient.publish('cids_topic', cidString);
+    throw UnimplementedError('Broadcast method not implemented in example');
   }
 
   @override
-  Stream<dynamic> subscribe() {
-    // Return a stream of broadcasts from other replicas
+  Stream<String> subscribe() {
+    // Return a stream of CID strings from other replicas
+    // Example: return myWebSocketClient.onMessage.where((msg) => isCidString(msg));
+    // Example: return myMessageQueueClient.subscribe('cids_topic');
+    throw UnimplementedError('Subscribe method not implemented in example');
   }
 }
 ```
