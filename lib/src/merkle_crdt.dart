@@ -16,11 +16,15 @@ class MerkleCRDT<V, P extends CRDTPayload<V>> extends AbstractMerkleDAG<P> {
   /// The Broadcaster component
   final Broadcaster broadcaster;
 
+  /// Optional callback invoked after a remote update has been successfully processed.
+  final void Function()? onRemoteUpdateProcessed;
+
   // dagSyncer, _roots, _nodeCache, and roots getter are inherited from AbstractMerkleDAG
 
   MerkleCRDT({
     required DAGSyncer<P> dagSyncer,
     required this.broadcaster,
+    this.onRemoteUpdateProcessed, // New callback parameter
     int maxCacheSize = 1000, // Default matches base class
   }) : super(dagSyncer: dagSyncer, maxCacheSize: maxCacheSize) {
     // Subscribe to broadcasts
@@ -67,6 +71,8 @@ class MerkleCRDT<V, P extends CRDTPayload<V>> extends AbstractMerkleDAG<P> {
       try {
         final cid = CID.fromString(data);
         await _merge(cid);
+        // If merge was successful (no exception thrown), invoke the callback
+        this.onRemoteUpdateProcessed?.call();
       } catch (e) {
         // Optionally log the error, e.g., print('Error during broadcast handling: $e');
         // For the purpose of the "Handles ... gracefully" test,

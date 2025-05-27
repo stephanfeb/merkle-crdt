@@ -151,5 +151,40 @@ void main() {
       expect(state, isNotNull);
       expect(state!.elements, containsAll(['apple', 'banana']));
     });
+
+    test('onRemoteUpdateProcessed callback is invoked', () async {
+      bool callbackInvoked = false;
+      final crdtWithCallback = MerkleCRDT<Set<String>, GSet<String>>(
+        dagSyncer: dagSyncer,
+        broadcaster: broadcaster,
+        onRemoteUpdateProcessed: () {
+          callbackInvoked = true;
+        },
+      );
+
+      // To simulate a remote update, we need another CRDT instance or manually put a node
+      // and then broadcast its CID. Let's use another CRDT instance for simplicity.
+      final crdt2 = MerkleCRDT<Set<String>, GSet<String>>(
+        dagSyncer: dagSyncer, // Shared DAGSyncer to allow node retrieval
+        broadcaster: MockBroadcaster(), // Separate broadcaster, crdtWithCallback will listen to 'broadcaster'
+      );
+
+      final setForCrdt2 = GSet<String>();
+      setForCrdt2.add('remote_value');
+      final remoteCid = await crdt2.add(setForCrdt2); // This puts the node into dagSyncer
+
+      // Now, crdtWithCallback's broadcaster simulates receiving this CID
+      await broadcaster.broadcast(remoteCid.toString());
+
+      // Wait for the broadcast to be processed by crdtWithCallback
+      await Future.delayed(Duration(milliseconds: 100));
+
+      expect(callbackInvoked, isTrue, reason: 'onRemoteUpdateProcessed callback should have been invoked.');
+
+      // Also verify the state to ensure merge happened
+      final state = await crdtWithCallback.getState();
+      expect(state, isNotNull);
+      expect(state!.elements, contains('remote_value'));
+    });
   });
 }
