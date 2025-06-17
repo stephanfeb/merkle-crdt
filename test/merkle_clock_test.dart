@@ -2,6 +2,9 @@ import 'package:dart_cid/dart_cid.dart';
 import 'package:merkledag/merkledag.dart';
 import 'package:test/test.dart';
 
+import 'mock/mock_dag_syncer.dart';
+
+
 void main() {
   // Helper to create a CID from a string content for testing
   CID cidFromContent(String content) => MerkleNode.create(content, <CID>{}).cid;

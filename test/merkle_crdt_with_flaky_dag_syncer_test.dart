@@ -5,6 +5,9 @@ import 'package:merkledag/merkledag.dart'; // This should provide MockBroadcaste
 import 'package:test/test.dart';
 import 'dart:async';
 
+import 'mock/mock_broadcaster.dart';
+
+
 // A custom DAGSyncer that can simulate network failures
 // P is the type of the CRDT payload object (e.g., TestPayload)
 class FlakyDAGSyncer<P> implements DAGSyncer<P> {

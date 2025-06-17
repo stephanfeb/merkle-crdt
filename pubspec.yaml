@@ -1,6 +1,6 @@
 name: merkledag
 description: A starting point for Dart libraries or applications.
-version: 1.0.0
+version: 1.0.1
 # repository: https://github.com/my_org/my_repo
 
 environment:
@@ -16,3 +16,7 @@ dependencies:
 dev_dependencies:
   lints: ^5.0.0
   test: ^1.24.0
+  mockito: ^5.4.4
+  build_runner: ^2.4.10
+  collection: ^1.19.0 # Already used in merkle_crdt.dart, ensure it's here for dev too
+  logging: ^1.2.0 # Already used in merkle_crdt.dart

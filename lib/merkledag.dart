@@ -15,6 +15,3 @@ export 'src/merkle_crdt.dart';
 // CRDT payloads
 export 'src/g_set.dart';
 
-// Mock components for testing
-export 'src/mock/mock_dag_syncer.dart';
-export 'src/mock/mock_broadcaster.dart';

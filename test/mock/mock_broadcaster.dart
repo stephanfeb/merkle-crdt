@@ -1,5 +1,6 @@
 import 'dart:async';
-import '../broadcaster.dart';
+
+import 'package:merkledag/merkledag.dart';
 
 /// A mock implementation of the Broadcaster interface
 class MockBroadcaster implements Broadcaster {

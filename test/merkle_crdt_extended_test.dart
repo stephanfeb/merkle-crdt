@@ -5,6 +5,10 @@ import 'package:merkledag/merkledag.dart';
 import 'package:test/test.dart';
 import 'dart:async';
 
+import 'mock/mock_broadcaster.dart';
+import 'mock/mock_dag_syncer.dart';
+
+
 // A custom CRDT payload for testing
 class Counter implements CRDTPayload<int> {
   final int _value; // Changed to private

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
-
+import 'package:collection/collection.dart'; // For listEquals
+import 'package:logging/logging.dart'; // For Logger
 import 'package:dart_cid/dart_cid.dart';
 
 import 'merkle_node.dart';
@@ -36,18 +37,35 @@ class MerkleCRDT<V, P extends CRDTPayload<V>> extends AbstractMerkleDAG<P> {
   /// Adds a new payload to the Merkle-CRDT
   Future<CID> add(P payload) async {
     return lock.synchronized(() async {
-      // If we have an existing state, merge the new payload with it
+      P effectivePayload = payload;
+
       if (super.instanceRoots.isNotEmpty) {
-        final currentState = await getState(); // getState itself might need locking if it reads roots/cache that can change
+        final P? currentState = await getState();
         if (currentState != null) {
-          // The merge method on P (which extends CRDTPayload<V>) should return P.
-          // Casting because CRDTPayload.merge is typed to return CRDTPayload<V>.
-          payload = currentState.merge(payload) as P;
+          effectivePayload = currentState.merge(payload) as P;
         }
       }
 
-      // Create a new node with the payload and current roots as children
-      final node = MerkleNode.create(payload, super.instanceRoots);
+      // --- START NO-OP CHECK ---
+      bool isNoOp = false;
+      if (super.instanceRoots.length == 1) {
+        final P? currentHeadPayload = await getState(); // This gets the payload of the current single head
+        if (currentHeadPayload != null) {
+          // Compare canonical bytes for robust equality check
+          if (const DeepCollectionEquality().equals(effectivePayload.toCanonicalBytes(), currentHeadPayload.toCanonicalBytes())) {
+            isNoOp = true;
+          }
+        }
+      }
+
+      if (isNoOp) {
+        Logger('MerkleCRDT').info('MerkleCRDT.add: No-op detected for payload. Returning existing head CID: ${super.instanceRoots.first}');
+        return super.instanceRoots.first;
+      }
+      // --- END NO-OP CHECK ---
+
+      // Create a new node with the (potentially merged) effectivePayload and current roots as children
+      final node = MerkleNode.create(effectivePayload, super.instanceRoots);
 
       // Add the node to the cache (inherited instanceNodeCache)
       super.instanceNodeCache[node.cid.toString()] = node;

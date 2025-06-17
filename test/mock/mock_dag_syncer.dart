@@ -1,6 +1,5 @@
 import 'package:dart_cid/dart_cid.dart';
-import '../merkle_node.dart';
-import '../dag_syncer.dart';
+import 'package:merkledag/merkledag.dart';
 
 /// A mock implementation of the DAG-Syncer interface
 class MockDAGSyncer<T> implements DAGSyncer<T> {
