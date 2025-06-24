@@ -2,6 +2,8 @@ import 'dart:convert'; // Added
 import 'dart:typed_data'; // Added
 import 'package:merkledag/merkledag.dart';
 
+import '../test/merkledag_test.mocks.dart';
+
 void main() async {
   // Create mock components for testing
   // P is GSet<String>
