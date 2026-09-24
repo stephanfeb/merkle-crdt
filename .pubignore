@@ -1,0 +1,8 @@
+# Replaces .gitignore for publishing, so it repeats those entries.
+.dart_tool/
+pubspec.lock
+.idea
+.vscode
+*.iml
+# The paper (linked from the README) and working notes stay on GitHub.
+doc/
