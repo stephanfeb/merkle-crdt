@@ -11,6 +11,8 @@ environment:
 dependencies:
   crypto: ^3.0.3
   dcid: ^1.0.0
+  collection: ^1.19.0
+  logging: ^1.2.0
   synchronized: ^3.3.0+3 # Using this for Lock
 
 dev_dependencies:
@@ -18,5 +20,3 @@ dev_dependencies:
   test: ^1.24.0
   mockito: ^5.4.4
   build_runner: ^2.4.10
-  collection: ^1.19.0 # Already used in merkle_crdt.dart, ensure it's here for dev too
-  logging: ^1.2.0 # Already used in merkle_crdt.dart

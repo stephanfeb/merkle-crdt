@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:collection/collection.dart'; // For listEquals
 import 'package:logging/logging.dart'; // For Logger
 import 'package:dcid/dcid.dart';
