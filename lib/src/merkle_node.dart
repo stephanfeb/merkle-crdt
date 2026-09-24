@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
-import 'package:dart_cid/dart_cid.dart';
+import 'package:dcid/dcid.dart';
 import 'crdt_payload.dart'; // Corrected import path for CRDTPayload type
 
 // Assuming dart_cid uses standard multihash format and provides codec constants.

@@ -1,5 +1,5 @@
 import 'dart:collection'; // For LinkedHashMap
-import 'package:dart_cid/dart_cid.dart';
+import 'package:dcid/dcid.dart';
 import 'package:synchronized/synchronized.dart'; // Using this for Lock
 
 import 'merkle_node.dart';

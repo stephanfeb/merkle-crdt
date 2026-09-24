@@ -1,4 +1,4 @@
-import 'package:dart_cid/dart_cid.dart';
+import 'package:dcid/dcid.dart';
 import 'package:merkledag/merkledag.dart';
 
 /// A mock implementation of the DAG-Syncer interface

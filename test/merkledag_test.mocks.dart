@@ -5,7 +5,7 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'dart:async' as _i3;
 
-import 'package:dart_cid/dart_cid.dart' as _i5;
+import 'package:dcid/dcid.dart' as _i5;
 import 'package:merkledag/src/broadcaster.dart' as _i6;
 import 'package:merkledag/src/dag_syncer.dart' as _i2;
 import 'package:merkledag/src/merkle_node.dart' as _i4;

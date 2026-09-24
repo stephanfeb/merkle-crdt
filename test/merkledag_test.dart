@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:collection/collection.dart'; // For listEquals
-import 'package:dart_cid/dart_cid.dart';
+import 'package:dcid/dcid.dart';
 import 'package:merkledag/merkledag.dart';
 import 'package:merkledag/src/broadcaster.dart'; // Import for Mocking
 import 'package:merkledag/src/dag_syncer.dart'; // Import for Mocking

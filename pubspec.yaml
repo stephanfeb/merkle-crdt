@@ -1,7 +1,8 @@
 name: merkledag
-description: A starting point for Dart libraries or applications.
+description: "Merkle-CRDTs in Dart: a content-addressed Merkle-DAG with Merkle clocks, so replicas converge over an unreliable, transport-agnostic network."
 version: 1.0.1
-# repository: https://github.com/my_org/my_repo
+repository: https://github.com/stephanfeb/merkle-crdt
+issue_tracker: https://github.com/stephanfeb/merkle-crdt/issues
 
 environment:
   sdk: ^3.5.0
@@ -9,8 +10,7 @@ environment:
 # Add regular dependencies here.
 dependencies:
   crypto: ^3.0.3
-  dart_cid:
-    path: /Users/stephanfeb/IdeaProjects/bsv_apps/dart-cid
+  dcid: ^1.0.0
   synchronized: ^3.3.0+3 # Using this for Lock
 
 dev_dependencies:
